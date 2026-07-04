@@ -1,0 +1,31 @@
+# 의존성
+node_modules/
+
+# 빌드 산출물
+dist/
+build/
+target/
+
+# 환경변수 / 비밀키
+.env
+.env.*
+!.env.example
+*.key
+serviceAccount*.json
+
+# Firebase
+.firebase/
+firebase-debug.log
+
+# 로그
+*.log
+npm-debug.log*
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# OMC 상태
+.omc/
