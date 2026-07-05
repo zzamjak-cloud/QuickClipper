@@ -50,11 +50,21 @@ export function DigestView() {
   categoryRef.current = category;
   const navRef = useRef<HTMLElement>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  /** 탭 전환 애니메이션 방향 ('right' = 새 리스트가 오른쪽에서 들어옴) */
+  const [slideDir, setSlideDir] = useState<'right' | 'left' | null>(null);
+
+  function changeCategory(next: (typeof tabs)[number]) {
+    const list = tabsRef.current;
+    const diff = list.indexOf(next) - list.indexOf(categoryRef.current as (typeof list)[number]);
+    if (diff === 0) return;
+    setSlideDir(diff > 0 ? 'right' : 'left');
+    setCategory(next);
+  }
 
   function switchTab(dir: 1 | -1) {
     const list = tabsRef.current;
     const next = list[list.indexOf(categoryRef.current as (typeof list)[number]) + dir];
-    if (next) setCategory(next);
+    if (next) changeCategory(next);
   }
 
   // PC: Shift+휠 / 터치패드 두 손가락 가로 스와이프
@@ -89,7 +99,8 @@ export function DigestView() {
 
   return (
     <div
-      className="min-h-dvh bg-slate-50"
+      // touch-pan-y: 가로 팬 제스처를 브라우저가 처리하지 않게 해 스와이프 시 화면 출렁임 방지
+      className="min-h-dvh touch-pan-y overscroll-x-none bg-slate-50"
       // 모바일: 좌우 스와이프로 탭 이동 (세로 스크롤과 구분되게 가로 우세 + 60px 이상일 때만)
       onTouchStart={(e) => {
         if ((e.target as HTMLElement).closest('[data-tabnav]')) return;
@@ -170,7 +181,7 @@ export function DigestView() {
               <button
                 key={cat}
                 data-active={category === cat}
-                onClick={() => setCategory(cat)}
+                onClick={() => changeCategory(cat)}
                 className={`rounded-full px-3 py-1 text-sm font-medium transition ${
                   category === cat
                     ? 'bg-slate-900 text-white'
@@ -184,7 +195,14 @@ export function DigestView() {
         </nav>
       </header>
 
-      <main className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-4">
+      {/* overflow-hidden 마스크 안에서 새 리스트가 방향에 맞춰 슬라이드 인 */}
+      <main className="mx-auto max-w-2xl overflow-x-hidden px-4 py-4">
+        <div
+          key={category}
+          className={`flex flex-col gap-3 ${
+            slideDir === 'right' ? 'tab-enter-right' : slideDir === 'left' ? 'tab-enter-left' : ''
+          }`}
+        >
         {/* 게임 탭 전용 하위 메뉴: 뉴스 / 모바일 순위 / 스팀 순위 */}
         {category === '게임' && (
           <div className="flex gap-1.5">
@@ -236,6 +254,7 @@ export function DigestView() {
             )}
           </>
         )}
+        </div>
       </main>
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
