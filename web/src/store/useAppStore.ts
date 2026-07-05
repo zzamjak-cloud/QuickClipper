@@ -28,8 +28,6 @@ interface AppState {
   checkAdmin: () => Promise<void>;
   setAccessConfig: (config: AccessConfig) => void;
   toggleClip: (item: DigestItem) => Promise<void>;
-  /** 번역 결과를 로컬 상태에 반영 (Firestore 캐시는 Functions가 기록) */
-  applyTranslation: (itemId: string, titleKo: string, summaryKo: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -90,11 +88,4 @@ export const useAppStore = create<AppState>((set, get) => ({
       await addClip(user.uid, item, date);
     }
   },
-
-  applyTranslation: (itemId, titleKo, summaryKo) =>
-    set((state) => ({
-      items: state.items.map((it) =>
-        it.id === itemId ? { ...it, titleKo, summaryKo } : it,
-      ),
-    })),
 }));
