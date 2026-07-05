@@ -5,6 +5,7 @@ node_modules/
 dist/
 build/
 target/
+functions/lib/
 
 # 환경변수 / 비밀키
 .env

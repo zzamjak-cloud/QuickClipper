@@ -1,0 +1,22 @@
+{
+  "name": "quickclipper-functions",
+  "version": "0.1.0",
+  "private": true,
+  "description": "QuickClipper 온디맨드 번역 함수",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.93.0",
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^6.5.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}
