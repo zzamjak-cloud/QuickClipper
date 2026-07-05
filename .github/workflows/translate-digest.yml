@@ -1,0 +1,40 @@
+name: Translate Digest
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 번역할 다이제스트 날짜(YYYY-MM-DD, 비우면 KST 오늘)
+        type: string
+        required: false
+      force:
+        description: 이미 번역된 항목도 다시 번역
+        type: boolean
+        default: false
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: collector
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: collector/package-lock.json
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 저장된 다이제스트 번역
+        run: npm run translate:digest
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DIGEST_DATE: ${{ inputs.date }}
+          FORCE_TRANSLATE: ${{ inputs.force && '1' || '' }}
