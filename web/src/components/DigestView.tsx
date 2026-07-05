@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bookmark, ChevronLeft, ChevronRight, LogOut, Settings } from 'lucide-react';
+import { Bookmark, ChevronLeft, ChevronRight, RefreshCw, Settings } from 'lucide-react';
 import { CATEGORIES, kstToday, shiftDate } from '../lib/types';
 import { useAppStore } from '../store/useAppStore';
-import { signOutUser } from '../lib/firebase';
 import { ItemCard } from './ItemCard';
 import { SettingsModal } from './SettingsModal';
 import { GameRankings } from './GameRankings';
@@ -14,12 +13,14 @@ export function DigestView() {
     useAppStore();
   const [showSettings, setShowSettings] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [gameMode, setGameMode] = useState<'news' | 'mobile' | 'steam'>('news');
+  const [gameMode, setGameMode] = useState<
+    'news' | 'mobileHot' | 'steamHot' | 'mobile' | 'steam'
+  >('news');
 
-  // 탭·날짜가 바뀌면 표시 개수 초기화
+  // 탭·날짜·게임 하위 탭이 바뀌면 표시 개수 초기화
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [category, date]);
+  }, [category, date, gameMode]);
 
   useEffect(() => {
     loadDigest(date);
@@ -39,6 +40,22 @@ export function DigestView() {
     () => (category === '전체' ? items : items.filter((it) => it.category === category)),
     [items, category],
   );
+
+  // 게임 "모바일 핫 / 스팀 핫": 키워드 기반으로 해당 플랫폼 뉴스만 추림
+  const MOBILE_HOT_RE =
+    /모바일|mobile|iOS|안드로이드|android|앱스토어|app store|구글\s?플레이|google play|가챠|gacha/i;
+  const STEAM_HOT_RE = /스팀|steam|얼리\s?액세스|early access|넥스트\s?페스트|next fest|데모|demo/i;
+
+  const displayList = useMemo(() => {
+    if (category !== '게임' || (gameMode !== 'mobileHot' && gameMode !== 'steamHot')) {
+      return filtered;
+    }
+    const re = gameMode === 'mobileHot' ? MOBILE_HOT_RE : STEAM_HOT_RE;
+    return filtered.filter((it) =>
+      re.test(`${it.title} ${it.summary} ${it.titleKo ?? ''} ${it.summaryKo ?? ''}`),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered, category, gameMode]);
 
   const isToday = date === kstToday();
 
@@ -170,44 +187,48 @@ export function DigestView() {
             >
               <Bookmark className="h-4 w-4" />
             </button>
-            {accessConfig && (
-              <button
-                onClick={() => setShowSettings(true)}
-                aria-label="설정"
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                <Settings className="h-4 w-4" />
-              </button>
-            )}
             <button
-              onClick={() => signOutUser()}
-              aria-label="로그아웃"
+              onClick={() => setShowSettings(true)}
+              aria-label="설정"
               className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
             >
-              <LogOut className="h-4 w-4" />
+              <Settings className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        {/* 카테고리 탭 */}
-        <nav ref={navRef} data-tabnav className="mx-auto max-w-2xl overflow-x-auto px-4 pb-2">
-          <div className="flex gap-1.5 whitespace-nowrap">
-            {tabs.map((cat) => (
-              <button
-                key={cat}
-                data-active={category === cat}
-                onClick={() => changeCategory(cat)}
-                className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-                  category === cat
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </nav>
+        {/* 카테고리 탭 + 새로고침 */}
+        <div className="mx-auto flex max-w-2xl items-center gap-1 px-4 pb-2">
+          <nav ref={navRef} data-tabnav className="min-w-0 flex-1 overflow-x-auto">
+            <div className="flex gap-1.5 whitespace-nowrap">
+              {tabs.map((cat) => (
+                <button
+                  key={cat}
+                  data-active={category === cat}
+                  onClick={() => changeCategory(cat)}
+                  className={`rounded-full px-3 py-1 text-sm font-medium transition ${
+                    category === cat
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </nav>
+          <button
+            onClick={() => {
+              loadDigest(date);
+              loadClipIds();
+            }}
+            disabled={loading}
+            aria-label="새로고침"
+            className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </header>
 
       {/* overflow-hidden 마스크 안에서 새 리스트가 방향에 맞춰 슬라이드 인 */}
@@ -221,12 +242,14 @@ export function DigestView() {
             slideDir === 'right' ? 'tab-enter-right' : slideDir === 'left' ? 'tab-enter-left' : ''
           }`}
         >
-        {/* 게임 탭 전용 하위 메뉴: 뉴스 / 모바일 순위 / 스팀 순위 */}
+        {/* 게임 탭 전용 하위 메뉴 */}
         {category === '게임' && (
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {(
               [
                 ['news', '뉴스'],
+                ['mobileHot', '모바일 핫'],
+                ['steamHot', '스팀 핫'],
                 ['mobile', '모바일 순위'],
                 ['steam', '스팀 순위'],
               ] as const
@@ -246,11 +269,11 @@ export function DigestView() {
           </div>
         )}
 
-        {category === '게임' && gameMode !== 'news' ? (
+        {category === '게임' && (gameMode === 'mobile' || gameMode === 'steam') ? (
           <GameRankings mode={gameMode} />
         ) : loading ? (
           <p className="py-16 text-center text-slate-400">불러오는 중…</p>
-        ) : filtered.length === 0 ? (
+        ) : displayList.length === 0 ? (
           <p className="py-16 text-center text-slate-400">
             {items.length === 0
               ? '이 날짜의 다이제스트가 없습니다'
@@ -259,15 +282,17 @@ export function DigestView() {
         ) : (
           <>
             {/* "전체" 탭은 전부 표시, 개별 카테고리 탭은 20건씩 + 더보기 */}
-            {(category === '전체' ? filtered : filtered.slice(0, visibleCount)).map((item) => (
-              <ItemCard key={item.id} item={item} />
-            ))}
-            {category !== '전체' && filtered.length > visibleCount && (
+            {(category === '전체' ? displayList : displayList.slice(0, visibleCount)).map(
+              (item) => (
+                <ItemCard key={item.id} item={item} />
+              ),
+            )}
+            {category !== '전체' && displayList.length > visibleCount && (
               <button
                 onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
                 className="rounded-xl border border-slate-200 bg-white py-3 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-100"
               >
-                더보기 ({visibleCount} / {filtered.length})
+                더보기 ({visibleCount} / {displayList.length})
               </button>
             )}
           </>

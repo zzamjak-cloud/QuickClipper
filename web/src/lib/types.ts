@@ -77,6 +77,8 @@ export interface SourceDef {
   limit?: number;
   enabled?: boolean;
   lang: 'ko' | 'en';
+  /** 관리자가 설정 UI에서 직접 추가한 소스 (이 경우에만 삭제 허용) */
+  custom?: boolean;
 }
 
 /** KST 기준 오늘 날짜 (YYYY-MM-DD) */

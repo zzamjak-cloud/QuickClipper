@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Loader2, LogOut, Plus, Trash2, X } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { updateAllowedEmails } from '../lib/access';
 import { addSource, deleteSource, fetchSources } from '../lib/sources';
 import type { Category, SourceDef } from '../lib/types';
 import { CATEGORIES } from '../lib/types';
+import { signOutUser } from '../lib/firebase';
+
+/** 설정 UI에서 직접 추가한 소스만 삭제 허용 */
+function isCustomSource(s: SourceDef): boolean {
+  return s.custom === true || s.id.startsWith('rss-');
+}
 
 interface Props {
   onClose: () => void;
@@ -12,9 +18,9 @@ interface Props {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** 관리자 전용 설정 팝업 — 허용 이메일 계정 + 수집 소스 관리 */
+/** 설정 팝업 — 내 계정(전체) + 허용 이메일·수집 소스 관리(관리자) */
 export function SettingsModal({ onClose }: Props) {
-  const { accessConfig, setAccessConfig } = useAppStore();
+  const { user, accessConfig, setAccessConfig } = useAppStore();
   const [input, setInput] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -30,8 +36,8 @@ export function SettingsModal({ onClose }: Props) {
     fetchSources().then(setSources).catch(() => {});
   }, []);
 
-  if (!accessConfig) return null;
-  const { admins, allowed } = accessConfig;
+  const admins = accessConfig?.admins ?? [];
+  const allowed = accessConfig?.allowed ?? [];
 
   async function addRssSource() {
     const name = srcName.trim();
@@ -47,6 +53,7 @@ export function SettingsModal({ onClose }: Props) {
       category: srcCategory,
       target: url,
       lang: srcLang,
+      custom: true, // UI에서 추가한 소스만 삭제 허용
     };
     setSrcSaving(true);
     try {
@@ -103,7 +110,7 @@ export function SettingsModal({ onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900">계정 관리</h2>
+          <h2 className="text-lg font-bold text-slate-900">설정</h2>
           <button
             onClick={onClose}
             aria-label="닫기"
@@ -113,6 +120,24 @@ export function SettingsModal({ onClose }: Props) {
           </button>
         </div>
 
+        {/* 내 계정 */}
+        <div className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5">
+          <span className="min-w-0 truncate text-sm font-medium text-slate-700">
+            {user?.email}
+          </span>
+          <button
+            onClick={() => signOutUser()}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            로그아웃
+          </button>
+        </div>
+
+        {accessConfig && (
+          <>
+        <hr className="my-5 border-slate-100" />
+        <h2 className="text-lg font-bold text-slate-900">계정 관리</h2>
         <p className="mt-1 text-xs text-slate-500">
           허용된 계정만 앱에 로그인해 다이제스트를 볼 수 있습니다.
         </p>
@@ -204,13 +229,16 @@ export function SettingsModal({ onClose }: Props) {
                 <span className="font-medium text-slate-700">{s.name}</span>
                 <span className="ml-1.5 text-[11px] text-slate-400">{s.type}</span>
               </div>
-              <button
-                onClick={() => removeSource(s.id)}
-                aria-label={`${s.name} 삭제`}
-                className="shrink-0 rounded-md p-1 text-slate-400 hover:text-red-500"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {/* 기본 소스는 보호 — 직접 추가한 소스만 삭제 가능 */}
+              {isCustomSource(s) && (
+                <button
+                  onClick={() => removeSource(s.id)}
+                  aria-label={`${s.name} 삭제`}
+                  className="shrink-0 rounded-md p-1 text-slate-400 hover:text-red-500"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -266,6 +294,8 @@ export function SettingsModal({ onClose }: Props) {
             </button>
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );
