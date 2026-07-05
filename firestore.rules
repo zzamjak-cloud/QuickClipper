@@ -1,0 +1,38 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 로그인한 사용자인지 확인
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // 본인 데이터인지 확인
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // 일일 다이제스트: 로그인 사용자 읽기 전용 (쓰기는 수집기의 Admin SDK가 규칙을 우회하여 수행)
+    match /digests/{date} {
+      allow read: if isSignedIn();
+      allow write: if false;
+
+      match /items/{itemId} {
+        allow read: if isSignedIn();
+        allow write: if false;
+      }
+    }
+
+    // 수집 소스 정의: 로그인 사용자 읽기 전용 (Phase 3에서 구독 관리 UI 추가 시 쓰기 정책 재검토)
+    match /sources/{sourceId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // 사용자 개인 데이터(스크랩, 설정): 본인만 읽기/쓰기
+    match /users/{uid}/{document=**} {
+      allow read, write: if isOwner(uid);
+    }
+  }
+}
