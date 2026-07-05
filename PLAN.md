@@ -56,6 +56,7 @@
 
 **AI는 온디맨드 "번역하기" 버튼으로만 사용** (배치 비용 0원 유지):
 - 해외 소스(HN, Reddit, Medium 등) 카드에 **번역하기 버튼** 표시 → 클릭 시에만 Gemini API(gemini-2.5-flash)로 제목+요약문을 한국어 번역. 무료 쿼터 내에서는 과금 없음.
+- **2중 장치**: Gemini가 쿼터 초과·장애로 실패하면 OpenAI(gpt-5.4-nano)로 자동 폴백.
 - 번역 결과는 해당 다이제스트 항목에 **캐시 저장**(Firestore) — 같은 항목을 다시 열거나 다른 기기에서 봐도 재과금 없음.
 - API 키를 클라이언트에 노출할 수 없으므로 번역 호출은 **Firebase Functions(호출형 함수) 경유** — Blaze 요금제 필요하지만 이 사용량이면 사실상 무료 구간.
 - 같은 구조로 추후 "AI 3줄 요약" 버튼도 쉽게 추가 가능.
@@ -73,7 +74,7 @@
 | 인증 | Firebase Google Auth (`signInWithPopup`) | TeamScheduler 방식 그대로 |
 | 수집기 | Node 20 + TypeScript (`rss-parser` 등) | Actions에서 실행 |
 | 스케줄러 | GitHub Actions cron | 무료, QuickFolder CI 경험 재사용 |
-| AI 번역 | Gemini API (gemini-2.5-flash) + Firebase Functions | "번역하기" 버튼 클릭 시에만 호출, 결과 캐시, 무료 쿼터 활용 |
+| AI 번역 | Gemini (gemini-2.5-flash) → 실패 시 OpenAI (gpt-5.4-nano) 폴백 + Firebase Functions | "번역하기" 버튼 클릭 시에만 호출, 결과 캐시, 무료 쿼터 활용 |
 | 모바일 | PWA (manifest + service worker) | 별도 앱 개발 없이 홈화면 설치 |
 
 ### 저장 구조 (Firestore)
