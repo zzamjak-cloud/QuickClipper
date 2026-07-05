@@ -28,9 +28,21 @@ export interface DigestItem {
   score: number;
   publishedAt: Timestamp | null;
   collectedAt: Timestamp;
-  /** 번역하기 결과 캐시 (있으면 재호출 없이 표시) */
+  /** 썸네일 이미지 (수집 시 추출) */
+  imageUrl?: string;
+  /** 배치 번역 결과 (영문 항목만) */
   titleKo?: string;
   summaryKo?: string;
+}
+
+/** 사이트 파비콘 URL (구글 파비콘 서비스) */
+export function faviconUrl(pageUrl: string): string | null {
+  try {
+    const host = new URL(pageUrl).hostname;
+    return `https://www.google.com/s2/favicons?domain=${host}&sz=32`;
+  } catch {
+    return null;
+  }
 }
 
 /** users/{uid}/clips/{id} 문서 — 다이제스트 항목의 스냅샷 */
@@ -47,6 +59,8 @@ export interface Clip {
   /** 원본 다이제스트 날짜 (YYYY-MM-DD) */
   digestDate: string;
   clippedAt: Timestamp;
+  /** 썸네일 이미지 */
+  imageUrl?: string;
   /** 사용자 태그 */
   tags?: string[];
   /** 사용자 메모 */

@@ -34,9 +34,10 @@ export async function addClip(uid: string, item: DigestItem, digestDate: string)
     digestDate,
     clippedAt: serverTimestamp(),
   };
-  // Firestore는 undefined를 허용하지 않으므로 번역 캐시는 있을 때만 포함
+  // Firestore는 undefined를 허용하지 않으므로 선택 필드는 있을 때만 포함
   if (item.titleKo) data.titleKo = item.titleKo;
   if (item.summaryKo) data.summaryKo = item.summaryKo;
+  if (item.imageUrl) data.imageUrl = item.imageUrl;
   await setDoc(doc(db, `users/${uid}/clips/${item.id}`), data);
 }
 

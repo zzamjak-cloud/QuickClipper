@@ -13,7 +13,10 @@ export function initFirestore() {
   const app = saJson
     ? initializeApp({ credential: cert(JSON.parse(saJson)) })
     : initializeApp({ credential: applicationDefault() });
-  return getFirestore(app);
+  const db = getFirestore(app);
+  // imageUrl/titleKo 등 선택 필드의 undefined를 자동 제거
+  db.settings({ ignoreUndefinedProperties: true });
+  return db;
 }
 
 /** URL 해시로 결정적 문서 ID 생성 — 재실행 시 같은 항목은 덮어쓰기(멱등) */

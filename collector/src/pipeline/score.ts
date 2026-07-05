@@ -37,5 +37,6 @@ export function toDigestItems(
     score: scoreItem(raw, now),
     publishedAt: raw.publishedAt,
     collectedAt: now,
+    imageUrl: raw.imageUrl,
   }));
 }

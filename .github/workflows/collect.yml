@@ -34,3 +34,5 @@ jobs:
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          # 영문 항목 배치 번역용 (미설정 시 원문 저장)
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

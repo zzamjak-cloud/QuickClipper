@@ -39,6 +39,8 @@ export interface RawItem {
   publishedAt: Date | null;
   /** 소스 자체 지표 (HN 포인트, Reddit 업보트 등). 없으면 null */
   sourceScore: number | null;
+  /** 피드에서 추출한 썸네일 (없으면 og:image 보강 단계에서 채움) */
+  imageUrl?: string;
 }
 
 /** 정규화·점수화가 끝나 Firestore에 저장되는 항목 */
@@ -54,4 +56,9 @@ export interface DigestItem {
   score: number;
   publishedAt: Date | null;
   collectedAt: Date;
+  /** 썸네일 이미지 */
+  imageUrl?: string;
+  /** 배치 번역 결과 (영문 항목만) */
+  titleKo?: string;
+  summaryKo?: string;
 }

@@ -6,6 +6,8 @@ import { fetchNaverNews, hasNaverCredentials } from './sources/navernews.js';
 import { normalizeItems } from './pipeline/normalize.js';
 import { dedupeItems } from './pipeline/dedupe.js';
 import { toDigestItems } from './pipeline/score.js';
+import { enrichImages } from './pipeline/enrich.js';
+import { hasGeminiCredentials, translateItems } from './pipeline/translate.js';
 import { initFirestore, saveDigest, cleanupOldDigests, kstDateString } from './pipeline/store.js';
 import type { DigestItem, RawItem, SourceDef } from './types.js';
 
@@ -91,6 +93,16 @@ async function main() {
 
   if (deduped.length === 0) {
     throw new Error('수집된 항목이 0건 — 전체 소스 장애 가능성');
+  }
+
+  // 이미지 보강 → 영문 항목 배치 번역 (실패해도 수집 자체는 계속)
+  if (!dryRun) {
+    await enrichImages(deduped);
+    if (hasGeminiCredentials()) {
+      await translateItems(deduped);
+    } else {
+      console.warn('[collect] GEMINI_API_KEY 미설정 — 배치 번역 건너뜀');
+    }
   }
 
   // DRY_RUN=1이면 Firestore 저장 없이 수집 결과만 출력 (로컬 검증용)
