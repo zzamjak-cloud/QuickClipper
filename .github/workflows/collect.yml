@@ -1,10 +1,25 @@
-# 매일 아침 다이제스트 수집 (06:30 KST = 21:30 UTC)
+# 매일 아침 다이제스트 수집 (06:30 KST + 백업 06:45/07:00)
 name: Daily Collect
 
 on:
   schedule:
-    - cron: "30 21 * * *"
-  workflow_dispatch: # 수동 실행용
+    - cron: "30 21 * * *" # 06:30 KST
+    - cron: "45 21 * * *" # 06:45 KST 백업
+    - cron: "0 22 * * *" # 07:00 KST 백업
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 기존 다이제스트가 있어도 재수집
+        type: boolean
+        default: false
+      skip_ai:
+        description: 번역·브리핑 AI 부가기능 건너뛰기
+        type: boolean
+        default: false
+
+concurrency:
+  group: daily-collect
+  cancel-in-progress: false
 
 jobs:
   collect:
@@ -36,3 +51,5 @@ jobs:
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           # 영문 항목 배치 번역용 (미설정 시 원문 저장)
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FORCE_COLLECT: ${{ github.event_name == 'workflow_dispatch' && inputs.force && '1' || '' }}
+          SKIP_AI_EXTRAS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_ai && '1' || '' }}

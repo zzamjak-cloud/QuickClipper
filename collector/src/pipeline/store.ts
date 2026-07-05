@@ -32,6 +32,16 @@ export function kstDateString(now: Date): string {
 
 const RETENTION_DAYS = 30;
 
+/** 백업 cron 재실행 시 이미 저장된 다이제스트는 다시 생성하지 않음 */
+export async function digestExists(
+  db: FirebaseFirestore.Firestore,
+  date: string,
+): Promise<boolean> {
+  const snap = await db.doc(`digests/${date}`).get();
+  const data = snap.data() as { itemCount?: unknown } | undefined;
+  return snap.exists && typeof data?.itemCount === 'number' && data.itemCount > 0;
+}
+
 /** 다이제스트 저장: digests/{date}/items/{itemId} */
 export async function saveDigest(
   db: FirebaseFirestore.Firestore,

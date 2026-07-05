@@ -30,5 +30,6 @@ Thumbs.db
 
 # OMC 상태
 .omc/
+.serena/
 .playwright-mcp/
 quick-clipper-firebase-adminsdk-fbsvc-0d901f881d.json
