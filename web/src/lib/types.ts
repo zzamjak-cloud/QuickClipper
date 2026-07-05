@@ -47,6 +47,22 @@ export interface Clip {
   /** 원본 다이제스트 날짜 (YYYY-MM-DD) */
   digestDate: string;
   clippedAt: Timestamp;
+  /** 사용자 태그 */
+  tags?: string[];
+  /** 사용자 메모 */
+  memo?: string;
+}
+
+/** sources/{id} 문서 — 수집 소스 정의 (collector와 동일 스키마) */
+export interface SourceDef {
+  id: string;
+  name: string;
+  type: 'rss' | 'hackernews' | 'reddit' | 'navernews';
+  category: Category;
+  target: string;
+  limit?: number;
+  enabled?: boolean;
+  lang: 'ko' | 'en';
 }
 
 /** KST 기준 오늘 날짜 (YYYY-MM-DD) */

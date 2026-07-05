@@ -46,10 +46,10 @@ service cloud.firestore {
       }
     }
 
-    // 수집 소스 정의: 허용된 계정만 읽기
+    // 수집 소스 정의: 허용된 계정 읽기, 관리자만 편집 (설정 UI에서 추가/제거)
     match /sources/{sourceId} {
       allow read: if isAllowed();
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
     // 사용자 개인 데이터(스크랩, 설정): 허용된 계정 + 본인만

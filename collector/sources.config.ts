@@ -121,5 +121,29 @@ export const SOURCES: SourceDef[] = [
     lang: 'en',
   },
 
-  // 증권/여행/맛집: Phase 3에서 네이버 API 소스로 추가 예정
+  // ── 증권 / 여행 / 맛집 (네이버 뉴스 검색 — 자격증명 없으면 자동 건너뜀) ──
+  {
+    id: 'naver-stock',
+    name: '네이버뉴스 증시',
+    type: 'navernews',
+    category: '증권',
+    target: '증시 전망',
+    lang: 'ko',
+  },
+  {
+    id: 'naver-travel',
+    name: '네이버뉴스 여행',
+    type: 'navernews',
+    category: '여행',
+    target: '여행 추천',
+    lang: 'ko',
+  },
+  {
+    id: 'naver-food',
+    name: '네이버뉴스 맛집',
+    type: 'navernews',
+    category: '맛집',
+    target: '맛집',
+    lang: 'ko',
+  },
 ];

@@ -5,6 +5,7 @@ import {
   getDocs,
   serverTimestamp,
   setDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Clip, DigestItem } from './types';
@@ -41,4 +42,13 @@ export async function addClip(uid: string, item: DigestItem, digestDate: string)
 
 export async function removeClip(uid: string, itemId: string) {
   await deleteDoc(doc(db, `users/${uid}/clips/${itemId}`));
+}
+
+/** 스크랩의 태그/메모 갱신 */
+export async function updateClipMeta(
+  uid: string,
+  clipId: string,
+  meta: { tags?: string[]; memo?: string },
+) {
+  await updateDoc(doc(db, `users/${uid}/clips/${clipId}`), meta);
 }

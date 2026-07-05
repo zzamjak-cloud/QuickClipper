@@ -4,10 +4,11 @@ import { auth } from './lib/firebase';
 import { useAppStore } from './store/useAppStore';
 import { LoginScreen } from './components/LoginScreen';
 import { DigestView } from './components/DigestView';
+import { ClipsView } from './components/ClipsView';
 import { AccessDeniedScreen } from './components/AccessDeniedScreen';
 
 function App() {
-  const { user, authReady, accessDenied, setUser } = useAppStore();
+  const { user, authReady, accessDenied, view, setUser } = useAppStore();
 
   useEffect(() => onAuthStateChanged(auth, setUser), [setUser]);
 
@@ -21,7 +22,7 @@ function App() {
 
   if (!user) return <LoginScreen />;
   if (accessDenied) return <AccessDeniedScreen />;
-  return <DigestView />;
+  return view === 'clips' ? <ClipsView /> : <DigestView />;
 }
 
 export default App;

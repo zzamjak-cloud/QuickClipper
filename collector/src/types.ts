@@ -13,7 +13,7 @@ export type Category =
   | '맛집';
 
 /** 수집 소스 타입 */
-export type SourceType = 'rss' | 'hackernews' | 'reddit';
+export type SourceType = 'rss' | 'hackernews' | 'reddit' | 'navernews';
 
 /** 소스 정의 — sources.config.ts에서 선언 */
 export interface SourceDef {
@@ -21,10 +21,12 @@ export interface SourceDef {
   name: string;
   type: SourceType;
   category: Category;
-  /** rss: 피드 URL / reddit: 서브레딧 이름 / hackernews: 미사용 */
+  /** rss: 피드 URL / reddit: 서브레딧 이름 / navernews: 검색 키워드 / hackernews: 미사용 */
   target: string;
   /** 소스당 최대 수집 개수 (기본 20) */
   limit?: number;
+  /** false면 수집에서 제외 (기본 true) */
+  enabled?: boolean;
   /** 요약문 언어 — 번역하기 버튼 노출 여부 판단용 */
   lang: 'ko' | 'en';
 }

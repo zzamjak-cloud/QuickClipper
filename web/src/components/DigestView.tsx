@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, LogOut, Settings } from 'lucide-react';
+import { Bookmark, ChevronLeft, ChevronRight, LogOut, Settings } from 'lucide-react';
 import { CATEGORIES, kstToday, shiftDate } from '../lib/types';
 import { useAppStore } from '../store/useAppStore';
 import { signOutUser } from '../lib/firebase';
@@ -7,7 +7,7 @@ import { ItemCard } from './ItemCard';
 import { SettingsModal } from './SettingsModal';
 
 export function DigestView() {
-  const { date, category, items, loading, accessConfig, setCategory, loadDigest, loadClipIds, checkAdmin } =
+  const { date, category, items, loading, accessConfig, setCategory, setView, loadDigest, loadClipIds, checkAdmin } =
     useAppStore();
   const [showSettings, setShowSettings] = useState(false);
 
@@ -45,7 +45,14 @@ export function DigestView() {
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="font-medium tabular-nums">{date}</span>
+            <input
+              type="date"
+              value={date}
+              max={kstToday()}
+              onChange={(e) => e.target.value && loadDigest(e.target.value)}
+              aria-label="날짜 선택"
+              className="cursor-pointer rounded-lg bg-transparent px-1 py-0.5 font-medium tabular-nums outline-none hover:bg-slate-100"
+            />
             <button
               onClick={() => loadDigest(shiftDate(date, 1))}
               disabled={isToday}
@@ -56,6 +63,13 @@ export function DigestView() {
             </button>
           </div>
           <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => setView('clips')}
+              aria-label="보관함"
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            >
+              <Bookmark className="h-4 w-4" />
+            </button>
             {accessConfig && (
               <button
                 onClick={() => setShowSettings(true)}
