@@ -102,13 +102,17 @@ async function main() {
     throw new Error('수집된 항목이 0건 — 전체 소스 장애 가능성');
   }
 
-  // 이미지 보강 → 영문 항목 배치 번역 (실패해도 수집 자체는 계속)
+  // 이미지 보강 → 영문 항목 배치 번역 → AI 부가기능 (실패해도 수집 자체는 계속)
+  let briefing: unknown = null;
   if (!dryRun) {
     await enrichImages(deduped);
     if (hasGeminiCredentials()) {
       await translateItems(deduped);
+      const { generateBriefing, summarizeClusters } = await import('./pipeline/ai-extras.js');
+      await summarizeClusters(deduped);
+      briefing = await generateBriefing(deduped);
     } else {
-      console.warn('[collect] GEMINI_API_KEY 미설정 — 배치 번역 건너뜀');
+      console.warn('[collect] GEMINI_API_KEY 미설정 — 배치 번역·AI 부가기능 건너뜀');
     }
   }
 
@@ -121,7 +125,7 @@ async function main() {
     return;
   }
 
-  await saveDigest(db, date, deduped);
+  await saveDigest(db, date, deduped, briefing);
 
   // 게임 순위 수집 (실패해도 다이제스트에는 영향 없음)
   try {
@@ -129,6 +133,20 @@ async function main() {
     await collectRankings(db, date);
   } catch (err) {
     console.warn(`[rankings] 순위 수집 실패: ${err}`);
+  }
+
+  // 주간 트렌드 리포트 — 일요일마다 지난 7일 다이제스트로 생성 (FORCE_REPORT=1로 강제 가능)
+  const isSunday = new Date(`${date}T00:00:00Z`).getUTCDay() === 0;
+  if ((isSunday || process.env.FORCE_REPORT) && hasGeminiCredentials()) {
+    try {
+      const { generateWeeklyReport } = await import('./pipeline/ai-extras.js');
+      const dates = Array.from({ length: 7 }, (_, i) =>
+        kstDateString(new Date(now.getTime() - (6 - i) * 86400_000)),
+      );
+      await generateWeeklyReport(db, dates);
+    } catch (err) {
+      console.warn(`[report] 주간 리포트 실패: ${err}`);
+    }
   }
 
   const removed = await cleanupOldDigests(db, now);

@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bookmark, ChevronLeft, ChevronRight, RefreshCw, Settings } from 'lucide-react';
-import { CATEGORIES, kstToday, shiftDate } from '../lib/types';
+import { Bookmark, ChevronLeft, ChevronRight, FileText, RefreshCw, Settings } from 'lucide-react';
+import { CATEGORIES, kstToday, personalScore, shiftDate } from '../lib/types';
+import type { Tab } from '../store/useAppStore';
 import { useAppStore } from '../store/useAppStore';
 import { ItemCard } from './ItemCard';
 import { SettingsModal } from './SettingsModal';
 import { GameRankings } from './GameRankings';
+import { BriefingCard } from './BriefingCard';
 
 const PAGE_SIZE = 20;
 
 export function DigestView() {
-  const { date, category, items, loading, setCategory, setView, loadDigest, loadClipIds, checkAdmin } =
+  const { date, category, items, loading, briefing, profile, setCategory, setView, loadDigest, loadClipIds, checkAdmin, ensureProfile } =
     useAppStore();
   const [showSettings, setShowSettings] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -26,6 +28,7 @@ export function DigestView() {
     loadDigest(date);
     loadClipIds();
     checkAdmin();
+    ensureProfile();
     // 마운트 시 1회 (date 변경은 버튼 핸들러에서 loadDigest 직접 호출)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -36,10 +39,19 @@ export function DigestView() {
     return CATEGORIES.filter((c) => present.has(c));
   }, [items]);
 
-  const filtered = useMemo(
-    () => (category === '전체' ? items : items.filter((it) => it.category === category)),
-    [items, category],
-  );
+  const filtered = useMemo(() => {
+    if (category === '전체') return items;
+    // 추천: 관심 프로필 키워드 매칭 점수순 상위 50개
+    if (category === '추천') {
+      if (!profile) return [];
+      return [...items]
+        .map((it) => ({ it, ps: personalScore(it, profile) }))
+        .sort((a, b) => b.ps - a.ps)
+        .slice(0, 50)
+        .map(({ it }) => it);
+    }
+    return items.filter((it) => it.category === category);
+  }, [items, category, profile]);
 
   // 게임 "모바일 핫 / 스팀 핫": 키워드 기반으로 해당 플랫폼 뉴스만 추림
   const MOBILE_HOT_RE =
@@ -60,7 +72,10 @@ export function DigestView() {
   const isToday = date === kstToday();
 
   // ── 좌우 스와이프/가로휠로 탭 이동 ──
-  const tabs = useMemo(() => ['전체', ...availableCategories] as const, [availableCategories]);
+  const tabs = useMemo<Tab[]>(
+    () => (profile ? ['추천', '전체', ...availableCategories] : ['전체', ...availableCategories]),
+    [availableCategories, profile],
+  );
   const tabsRef = useRef(tabs);
   const categoryRef = useRef(category);
   tabsRef.current = tabs;
@@ -181,6 +196,13 @@ export function DigestView() {
           </div>
           <div className="flex items-center gap-0.5">
             <button
+              onClick={() => setView('reports')}
+              aria-label="주간 리포트"
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            >
+              <FileText className="h-4 w-4" />
+            </button>
+            <button
               onClick={() => setView('clips')}
               aria-label="보관함"
               className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
@@ -242,6 +264,9 @@ export function DigestView() {
             slideDir === 'right' ? 'tab-enter-right' : slideDir === 'left' ? 'tab-enter-left' : ''
           }`}
         >
+        {/* 오늘의 AI 브리핑 (전체 탭) */}
+        {category === '전체' && briefing && <BriefingCard briefing={briefing} />}
+
         {/* 게임 탭 전용 하위 메뉴 */}
         {category === '게임' && (
           <div className="flex flex-wrap gap-1.5">

@@ -61,4 +61,13 @@ export interface DigestItem {
   /** 배치 번역 결과 (영문 항목만) */
   titleKo?: string;
   summaryKo?: string;
+  /** 같은 이슈를 보도한 다른 소스들 (교차 보도 클러스터) */
+  relatedSources?: { name: string; url: string }[];
+  /** 클러스터 종합 요약 (2개 소스 이상 이슈) */
+  clusterSummary?: string;
+}
+
+/** 오늘의 AI 브리핑 */
+export interface Briefing {
+  points: { title: string; body: string; category: string }[];
 }

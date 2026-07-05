@@ -7,6 +7,7 @@
   "scripts": {
     "collect": "tsx src/index.ts",
     "collect:rankings": "tsx src/run-rankings.ts",
+    "ai:extras": "tsx src/run-ai-extras.ts",
     "seed:sources": "tsx src/seed-sources.ts",
     "typecheck": "tsc --noEmit"
   },

@@ -1,22 +1,30 @@
 import { create } from 'zustand';
 import type { User } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
-import type { Category, Clip, DigestItem } from '../lib/types';
+import type { Briefing, Category, Clip, DigestItem, UserProfile } from '../lib/types';
 import { kstToday } from '../lib/types';
-import { fetchDigestItems } from '../lib/digest';
+import { fetchDigestBriefing, fetchDigestItems } from '../lib/digest';
 import { addClip, fetchClipIds, fetchClips, removeClip, updateClipMeta } from '../lib/clips';
 import type { AccessConfig } from '../lib/access';
 import { fetchAccessConfig } from '../lib/access';
+import { fetchProfile, generateProfile, recordClick, suggestTags } from '../lib/ai';
+
+/** 다이제스트 탭: 카테고리 + 가상 탭(전체/추천) */
+export type Tab = Category | '전체' | '추천';
 
 interface AppState {
   user: User | null;
   authReady: boolean;
-  /** 현재 화면: 오늘의 다이제스트 / 스크랩 보관함 */
-  view: 'digest' | 'clips';
+  /** 현재 화면: 다이제스트 / 보관함 / 주간 리포트 */
+  view: 'digest' | 'clips' | 'reports';
   date: string;
-  category: Category | '전체';
+  category: Tab;
   items: DigestItem[];
   loading: boolean;
+  /** 오늘의 AI 브리핑 */
+  briefing: Briefing | null;
+  /** 관심 프로필 (추천 탭 정렬용) */
+  profile: UserProfile | null;
   clipIds: Set<string>;
   clips: Clip[];
   clipsLoading: boolean;
@@ -26,17 +34,24 @@ interface AppState {
   accessConfig: AccessConfig | null;
 
   setUser: (user: User | null) => void;
-  setView: (view: 'digest' | 'clips') => void;
-  setCategory: (category: Category | '전체') => void;
+  setView: (view: 'digest' | 'clips' | 'reports') => void;
+  setCategory: (category: Tab) => void;
   loadDigest: (date: string) => Promise<void>;
   loadClipIds: () => Promise<void>;
   loadClips: () => Promise<void>;
+  /** 프로필 로드 + 오래됐으면 백그라운드 갱신 */
+  ensureProfile: () => Promise<void>;
+  trackClick: (item: DigestItem) => void;
   deleteClip: (clipId: string) => Promise<void>;
   saveClipMeta: (clipId: string, meta: { tags?: string[]; memo?: string }) => Promise<void>;
   checkAdmin: () => Promise<void>;
   setAccessConfig: (config: AccessConfig) => void;
   toggleClip: (item: DigestItem) => Promise<void>;
 }
+
+/** 프로필 갱신 주기 (7일) */
+const PROFILE_TTL_MS = 7 * 86400_000;
+let profileRefreshTried = false;
 
 export const useAppStore = create<AppState>((set, get) => ({
   user: null,
@@ -46,6 +61,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   category: '전체',
   items: [],
   loading: false,
+  briefing: null,
+  profile: null,
   clipIds: new Set(),
   clips: [],
   clipsLoading: false,
@@ -59,8 +76,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadDigest: async (date) => {
     set({ loading: true, date });
     try {
-      const items = await fetchDigestItems(date);
-      set({ items });
+      const [items, briefing] = await Promise.all([
+        fetchDigestItems(date),
+        fetchDigestBriefing(date).catch(() => null),
+      ]);
+      set({ items, briefing });
     } catch (e) {
       // 허용 목록에 없는 계정 → 접근 거부 화면으로 전환
       if (e instanceof FirebaseError && e.code === 'permission-denied') {
@@ -76,6 +96,32 @@ export const useAppStore = create<AppState>((set, get) => ({
   checkAdmin: async () => {
     const config = await fetchAccessConfig();
     if (config) set({ accessConfig: config });
+  },
+
+  ensureProfile: async () => {
+    const { user } = get();
+    if (!user) return;
+    const profile = await fetchProfile(user.uid).catch(() => null);
+    if (profile) set({ profile });
+
+    // 프로필이 없거나 7일 이상 지났으면 백그라운드로 재생성 (활동 부족 등 실패는 무시)
+    const stale =
+      !profile || !profile.updatedAt || Date.now() - profile.updatedAt.toMillis() > PROFILE_TTL_MS;
+    if (stale && !profileRefreshTried) {
+      profileRefreshTried = true;
+      try {
+        await generateProfile();
+        const fresh = await fetchProfile(user.uid);
+        if (fresh) set({ profile: fresh });
+      } catch {
+        // 활동 기록 부족 등 — 다음 세션에서 재시도
+      }
+    }
+  },
+
+  trackClick: (item) => {
+    const { user } = get();
+    if (user) recordClick(user.uid, item);
   },
 
   setAccessConfig: (config) => set({ accessConfig: config }),
@@ -128,6 +174,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       next.add(item.id);
       set({ clipIds: next });
       await addClip(user.uid, item, date);
+      // AI 자동 태그 (백그라운드, 실패 무시)
+      suggestTags(item)
+        .then((tags) => {
+          if (tags.length > 0) return updateClipMeta(user.uid, item.id, { tags });
+        })
+        .catch(() => {});
     }
   },
 }));

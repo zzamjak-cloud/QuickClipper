@@ -5,6 +5,7 @@ import { useAppStore } from './store/useAppStore';
 import { LoginScreen } from './components/LoginScreen';
 import { DigestView } from './components/DigestView';
 import { ClipsView } from './components/ClipsView';
+import { ReportsView } from './components/ReportsView';
 import { AccessDeniedScreen } from './components/AccessDeniedScreen';
 
 function App() {
@@ -22,7 +23,9 @@ function App() {
 
   if (!user) return <LoginScreen />;
   if (accessDenied) return <AccessDeniedScreen />;
-  return view === 'clips' ? <ClipsView /> : <DigestView />;
+  if (view === 'clips') return <ClipsView />;
+  if (view === 'reports') return <ReportsView />;
+  return <DigestView />;
 }
 
 export default App;

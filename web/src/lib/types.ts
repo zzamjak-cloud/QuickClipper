@@ -33,6 +33,42 @@ export interface DigestItem {
   /** 배치 번역 결과 (영문 항목만) */
   titleKo?: string;
   summaryKo?: string;
+  /** 같은 이슈를 보도한 다른 소스들 (교차 보도) */
+  relatedSources?: { name: string; url: string }[];
+  /** 교차 보도 이슈의 AI 종합 요약 */
+  clusterSummary?: string;
+}
+
+/** 오늘의 AI 브리핑 (digests/{date}.briefing) */
+export interface Briefing {
+  points: { title: string; body: string; category: string }[];
+}
+
+/** 주간 트렌드 리포트 (reports/{weekId}) */
+export interface WeeklyReport {
+  weekId: string;
+  startDate: string;
+  endDate: string;
+  title: string;
+  sections: { heading: string; body: string }[];
+}
+
+/** 관심 프로필 (users/{uid}/profile/main) */
+export interface UserProfile {
+  interests: string[];
+  keywords: { word: string; weight: number }[];
+  updatedAt?: Timestamp;
+}
+
+/** 관심 프로필 기반 개인화 점수 (키워드 매칭 + 기본 점수) */
+export function personalScore(item: DigestItem, profile: UserProfile): number {
+  const text =
+    `${item.title} ${item.summary} ${item.titleKo ?? ''} ${item.summaryKo ?? ''}`.toLowerCase();
+  let match = 0;
+  for (const { word, weight } of profile.keywords) {
+    if (word && text.includes(word.toLowerCase())) match += weight * 8;
+  }
+  return Math.min(match, 70) + item.score * 0.3;
 }
 
 /** 사이트 파비콘 URL (구글 파비콘 서비스) */

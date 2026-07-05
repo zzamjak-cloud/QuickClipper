@@ -46,6 +46,12 @@ service cloud.firestore {
       }
     }
 
+    // 주간 트렌드 리포트: 허용된 계정만 읽기 (쓰기는 수집기의 Admin SDK)
+    match /reports/{weekId} {
+      allow read: if isAllowed();
+      allow write: if false;
+    }
+
     // 게임 순위: 허용된 계정만 읽기 (쓰기는 수집기의 Admin SDK)
     match /rankings/{date} {
       allow read: if isAllowed();

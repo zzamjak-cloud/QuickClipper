@@ -33,12 +33,20 @@ export function dedupeItems(items: DigestItem[]): DigestItem[] {
   const kept: { item: DigestItem; words: Set<string> }[] = [];
   const seenUrls = new Map<string, DigestItem>();
 
+  // 교차 보도 기록: 남긴 항목에 가점 + 탈락한 다른 소스 기사를 relatedSources로 보존
+  function absorb(keptItem: DigestItem, dropped: DigestItem) {
+    if (keptItem.sourceId === dropped.sourceId) return;
+    keptItem.score = Math.min(keptItem.score + CROSS_SOURCE_BOOST, 100);
+    const related = keptItem.relatedSources ?? [];
+    if (!related.some((s) => s.url === dropped.url) && related.length < 6) {
+      keptItem.relatedSources = [...related, { name: dropped.sourceName, url: dropped.url }];
+    }
+  }
+
   for (const item of sorted) {
     const urlDup = seenUrls.get(item.url);
     if (urlDup) {
-      if (urlDup.sourceId !== item.sourceId) {
-        urlDup.score = Math.min(urlDup.score + CROSS_SOURCE_BOOST, 100);
-      }
+      absorb(urlDup, item);
       continue;
     }
 
@@ -49,10 +57,7 @@ export function dedupeItems(items: DigestItem[]): DigestItem[] {
         jaccard(k.words, words) >= TITLE_SIMILARITY_THRESHOLD,
     );
     if (titleDup) {
-      // 교차 보도(다른 소스가 같은 소식) = 화제성 신호 → 남긴 항목에 가점
-      if (titleDup.item.sourceId !== item.sourceId) {
-        titleDup.item.score = Math.min(titleDup.item.score + CROSS_SOURCE_BOOST, 100);
-      }
+      absorb(titleDup.item, item);
       continue;
     }
 

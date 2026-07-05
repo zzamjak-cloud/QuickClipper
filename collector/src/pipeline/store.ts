@@ -37,13 +37,15 @@ export async function saveDigest(
   db: FirebaseFirestore.Firestore,
   date: string,
   items: DigestItem[],
+  briefing?: unknown,
 ): Promise<void> {
-  // 다이제스트 메타 문서 (열람 앱에서 날짜 목록 조회용)
+  // 다이제스트 메타 문서 (열람 앱에서 날짜 목록·브리핑 조회용)
   await db.doc(`digests/${date}`).set(
     {
       date,
       itemCount: items.length,
       categories: [...new Set(items.map((it) => it.category))],
+      ...(briefing ? { briefing } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     },
     { merge: true },

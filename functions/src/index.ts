@@ -145,3 +145,143 @@ export const translateItem = onCall(
     return parsed;
   },
 );
+
+/** 관심 프로필 JSON 스키마 */
+const PROFILE_SCHEMA = {
+  type: 'object',
+  properties: {
+    interests: {
+      type: 'array',
+      items: { type: 'string' },
+      description: '사용자의 관심 주제 3~6개 (한국어 짧은 구문)',
+    },
+    keywords: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          word: { type: 'string', description: '기사 제목/요약에서 매칭할 키워드 (한국어 또는 영어)' },
+          weight: { type: 'integer', description: '중요도 1~5' },
+        },
+        required: ['word', 'weight'],
+      },
+      description: '관심도 매칭용 키워드 10~20개 (한국어·영어 각각 포함)',
+    },
+  },
+  required: ['interests', 'keywords'],
+};
+
+/**
+ * 관심 프로필 생성: 사용자의 클릭·스크랩 이력을 분석해
+ * users/{uid}/profile/main에 키워드 프로필 저장. (주 1회 수준 호출)
+ */
+export const generateProfile = onCall(
+  {
+    region: 'asia-northeast3',
+    secrets: [geminiApiKey],
+    maxInstances: 3,
+    timeoutSeconds: 60,
+  },
+  async (request) => {
+    await assertAllowed(request.auth);
+    const uid = request.auth!.uid;
+    const db = getFirestore();
+
+    const [clicksSnap, clipsSnap] = await Promise.all([
+      db.collection(`users/${uid}/clicks`).orderBy('ts', 'desc').limit(100).get(),
+      db.collection(`users/${uid}/clips`).orderBy('clippedAt', 'desc').limit(100).get(),
+    ]);
+
+    const lines: string[] = [];
+    clipsSnap.docs.forEach((d) => {
+      const c = d.data();
+      lines.push(`[스크랩/${c.category}] ${c.titleKo ?? c.title}${c.tags?.length ? ` #${c.tags.join(' #')}` : ''}`);
+    });
+    clicksSnap.docs.forEach((d) => {
+      const c = d.data();
+      lines.push(`[클릭/${c.category}] ${c.title}`);
+    });
+
+    if (lines.length < 5) {
+      throw new HttpsError('failed-precondition', '활동 기록이 아직 부족합니다 (5건 이상 필요)');
+    }
+
+    const ai = new GoogleGenAI({ apiKey: geminiApiKey.value() });
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        '아래는 뉴스 앱 사용자의 스크랩·클릭 이력이야. 이 사용자의 관심사를 분석해줘.',
+        'keywords는 앞으로 기사 제목·요약과 문자열 매칭에 쓰이니, 실제 기사에 자주 등장할 구체적 단어로 (한국어와 영어 표기 모두 포함).',
+        '',
+        ...lines.slice(0, 150),
+      ].join('\n'),
+      config: { responseMimeType: 'application/json', responseJsonSchema: PROFILE_SCHEMA },
+    });
+    if (!response.text) {
+      throw new HttpsError('internal', '프로필 생성 응답이 비어 있습니다');
+    }
+    const profile = JSON.parse(response.text) as {
+      interests: string[];
+      keywords: { word: string; weight: number }[];
+    };
+
+    await db.doc(`users/${uid}/profile/main`).set({
+      interests: profile.interests.slice(0, 6),
+      keywords: profile.keywords.slice(0, 20),
+      updatedAt: new Date(),
+    });
+
+    return profile;
+  },
+);
+
+/** 태그 제안 JSON 스키마 */
+const TAGS_SCHEMA = {
+  type: 'object',
+  properties: {
+    tags: {
+      type: 'array',
+      items: { type: 'string' },
+      description: '한국어 태그 2~3개 (각 1~3단어, # 없이)',
+    },
+  },
+  required: ['tags'],
+};
+
+/** 스크랩 자동 태그: 제목·요약으로 태그 2~3개 제안 */
+export const suggestTags = onCall(
+  {
+    region: 'asia-northeast3',
+    secrets: [geminiApiKey],
+    maxInstances: 5,
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    await assertAllowed(request.auth);
+    const { title, summary, category } = (request.data ?? {}) as {
+      title?: string;
+      summary?: string;
+      category?: string;
+    };
+    if (!title || title.length > 500) {
+      throw new HttpsError('invalid-argument', 'title이 올바르지 않습니다');
+    }
+
+    const ai = new GoogleGenAI({ apiKey: geminiApiKey.value() });
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        '다음 기사에 어울리는 분류 태그 2~3개를 제안해줘. 짧고 재사용 가능한 한국어 태그로 (예: LLM, 게임개발, 국내여행).',
+        `카테고리: ${(category ?? '').slice(0, 20)}`,
+        `제목: ${title}`,
+        `요약: ${(summary ?? '').slice(0, 300)}`,
+      ].join('\n'),
+      config: { responseMimeType: 'application/json', responseJsonSchema: TAGS_SCHEMA },
+    });
+    if (!response.text) {
+      throw new HttpsError('internal', '태그 제안 응답이 비어 있습니다');
+    }
+    const parsed = JSON.parse(response.text) as { tags: string[] };
+    return { tags: parsed.tags.slice(0, 3).map((t) => t.replace(/^#/, '').trim()) };
+  },
+);
