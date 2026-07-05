@@ -55,7 +55,7 @@
 - **중복제거**: URL 정규화(쿼리스트링 제거 등) + 제목 유사도(단어 집합 비교) 알고리즘.
 
 **AI는 온디맨드 "번역하기" 버튼으로만 사용** (배치 비용 0원 유지):
-- 해외 소스(HN, Reddit, Medium 등) 카드에 **번역하기 버튼** 표시 → 클릭 시에만 Claude API(Haiku)로 제목+요약문을 한국어 번역. 실제로 읽는 글에만 소액 과금.
+- 해외 소스(HN, Reddit, Medium 등) 카드에 **번역하기 버튼** 표시 → 클릭 시에만 Gemini API(gemini-2.5-flash)로 제목+요약문을 한국어 번역. 무료 쿼터 내에서는 과금 없음.
 - 번역 결과는 해당 다이제스트 항목에 **캐시 저장**(Firestore) — 같은 항목을 다시 열거나 다른 기기에서 봐도 재과금 없음.
 - API 키를 클라이언트에 노출할 수 없으므로 번역 호출은 **Firebase Functions(호출형 함수) 경유** — Blaze 요금제 필요하지만 이 사용량이면 사실상 무료 구간.
 - 같은 구조로 추후 "AI 3줄 요약" 버튼도 쉽게 추가 가능.
@@ -73,7 +73,7 @@
 | 인증 | Firebase Google Auth (`signInWithPopup`) | TeamScheduler 방식 그대로 |
 | 수집기 | Node 20 + TypeScript (`rss-parser` 등) | Actions에서 실행 |
 | 스케줄러 | GitHub Actions cron | 무료, QuickFolder CI 경험 재사용 |
-| AI 번역 | Claude API (claude-haiku-4-5) + Firebase Functions | "번역하기" 버튼 클릭 시에만 호출, 결과 캐시 |
+| AI 번역 | Gemini API (gemini-2.5-flash) + Firebase Functions | "번역하기" 버튼 클릭 시에만 호출, 결과 캐시, 무료 쿼터 활용 |
 | 모바일 | PWA (manifest + service worker) | 별도 앱 개발 없이 홈화면 설치 |
 
 ### 저장 구조 (Firestore)
@@ -124,7 +124,7 @@ QuickClipper/
 ### Phase 2 — 열람 웹앱/PWA (3~5일)
 - [ ] Google 로그인, 오늘의 다이제스트 뷰 (카테고리 탭: 글로벌 핫이슈/AI/인사이트/게임/아트/IT/증권/여행/맛집)
 - [ ] 카드형 UI: 피드 요약문 + 원문 링크 + 중요도 정렬
-- [ ] 해외 소스 카드에 **번역하기 버튼** — Firebase Functions 경유 Claude 번역 + Firestore 캐시
+- [ ] 해외 소스 카드에 **번역하기 버튼** — Firebase Functions 경유 Gemini 번역 + Firestore 캐시
 - [ ] 스크랩(보관) 버튼 → `users/{uid}/clips` 저장
 - [ ] PWA 설정 (manifest, 홈화면 설치, 오프라인 캐시)
 - [ ] Firebase Hosting 자동 배포

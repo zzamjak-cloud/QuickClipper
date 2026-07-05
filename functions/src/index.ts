@@ -2,9 +2,9 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 
-const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
+const geminiApiKey = defineSecret('GEMINI_API_KEY');
 
 initializeApp();
 
@@ -16,8 +16,7 @@ const TRANSLATION_SCHEMA = {
     summaryKo: { type: 'string', description: '한국어로 번역된 요약문 (원문 요약이 없으면 빈 문자열)' },
   },
   required: ['titleKo', 'summaryKo'],
-  additionalProperties: false,
-} as const;
+};
 
 /**
  * 온디맨드 번역: digests/{date}/items/{itemId}의 제목+요약을 한국어로 번역.
@@ -26,7 +25,7 @@ const TRANSLATION_SCHEMA = {
 export const translateItem = onCall(
   {
     region: 'asia-northeast3',
-    secrets: [anthropicApiKey],
+    secrets: [geminiApiKey],
     maxInstances: 5, // 개인용 앱 — 폭주 방지
   },
   async (request) => {
@@ -55,26 +54,23 @@ export const translateItem = onCall(
       return { titleKo: item.titleKo, summaryKo: item.summaryKo ?? '' };
     }
 
-    const client = new Anthropic({ apiKey: anthropicApiKey.value() });
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 1024,
-      output_config: { format: { type: 'json_schema', schema: TRANSLATION_SCHEMA } },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            '다음 영문 뉴스의 제목과 요약을 자연스러운 한국어로 번역해줘.',
-            '고유명사(회사명, 제품명, 인명)는 원어를 유지하거나 통용되는 한글 표기를 사용해.',
-            '',
-            `제목: ${item.title}`,
-            `요약: ${item.summary || '(요약 없음)'}`,
-          ].join('\n'),
-        },
-      ],
+    const ai = new GoogleGenAI({ apiKey: geminiApiKey.value() });
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        '다음 영문 뉴스의 제목과 요약을 자연스러운 한국어로 번역해줘.',
+        '고유명사(회사명, 제품명, 인명)는 원어를 유지하거나 통용되는 한글 표기를 사용해.',
+        '',
+        `제목: ${item.title}`,
+        `요약: ${item.summary || '(요약 없음)'}`,
+      ].join('\n'),
+      config: {
+        responseMimeType: 'application/json',
+        responseJsonSchema: TRANSLATION_SCHEMA,
+      },
     });
 
-    const text = response.content.find((b) => b.type === 'text')?.text;
+    const text = response.text;
     if (!text) {
       throw new HttpsError('internal', '번역 응답이 비어 있습니다');
     }
