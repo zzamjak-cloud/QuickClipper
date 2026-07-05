@@ -7,7 +7,7 @@ import { ItemCard } from './ItemCard';
 import { SettingsModal } from './SettingsModal';
 import { GameRankings } from './GameRankings';
 
-const PAGE_SIZE = 30;
+const PAGE_SIZE = 20;
 
 export function DigestView() {
   const { date, category, items, loading, accessConfig, setCategory, setView, loadDigest, loadClipIds, checkAdmin } =
@@ -157,10 +157,11 @@ export function DigestView() {
           </p>
         ) : (
           <>
-            {filtered.slice(0, visibleCount).map((item) => (
+            {/* "전체" 탭은 전부 표시, 개별 카테고리 탭은 20건씩 + 더보기 */}
+            {(category === '전체' ? filtered : filtered.slice(0, visibleCount)).map((item) => (
               <ItemCard key={item.id} item={item} />
             ))}
-            {filtered.length > visibleCount && (
+            {category !== '전체' && filtered.length > visibleCount && (
               <button
                 onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
                 className="rounded-xl border border-slate-200 bg-white py-3 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-100"
