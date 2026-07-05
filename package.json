@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "google-auth-library": "^10.9.0",
+    "linkedom": "^0.18.12"
+  }
+}
