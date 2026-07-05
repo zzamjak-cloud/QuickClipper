@@ -9,7 +9,7 @@ import { GameRankings } from './GameRankings';
 const PAGE_SIZE = 20;
 
 export function DigestView() {
-  const { date, category, items, loading, accessConfig, setCategory, setView, loadDigest, loadClipIds, checkAdmin } =
+  const { date, category, items, loading, setCategory, setView, loadDigest, loadClipIds, checkAdmin } =
     useAppStore();
   const [showSettings, setShowSettings] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
