@@ -5,7 +5,7 @@ import type { RawItem, SourceDef } from '../types.js';
 const parser: Parser<Record<string, unknown>, Record<string, unknown>> = new Parser({
   timeout: 15000,
   customFields: {
-    item: ['media:content', 'media:thumbnail', 'content:encoded'],
+    item: ['media:content', 'media:thumbnail', 'media:group', 'content:encoded'],
   },
 });
 
@@ -16,6 +16,11 @@ function extractImage(item: Record<string, unknown>): string | undefined {
 
   const mediaThumb = item['media:thumbnail'] as { $?: { url?: string } } | undefined;
   if (mediaThumb?.$?.url) return mediaThumb.$.url;
+
+  // 유튜브 등 Atom 피드는 media:group 안에 썸네일이 있음
+  const group = item['media:group'] as Record<string, { $?: { url?: string } }[]> | undefined;
+  const groupThumb = group?.['media:thumbnail']?.[0]?.$?.url;
+  if (groupThumb) return groupThumb;
 
   const enclosure = item.enclosure as { url?: string; type?: string } | undefined;
   if (enclosure?.url && (enclosure.type ?? '').startsWith('image/')) return enclosure.url;
