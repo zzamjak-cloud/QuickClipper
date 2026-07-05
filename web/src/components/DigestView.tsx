@@ -1,17 +1,20 @@
-import { useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight, LogOut, Settings } from 'lucide-react';
 import { CATEGORIES, kstToday, shiftDate } from '../lib/types';
 import { useAppStore } from '../store/useAppStore';
 import { signOutUser } from '../lib/firebase';
 import { ItemCard } from './ItemCard';
+import { SettingsModal } from './SettingsModal';
 
 export function DigestView() {
-  const { date, category, items, loading, setCategory, loadDigest, loadClipIds } =
+  const { date, category, items, loading, accessConfig, setCategory, loadDigest, loadClipIds, checkAdmin } =
     useAppStore();
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     loadDigest(date);
     loadClipIds();
+    checkAdmin();
     // 마운트 시 1회 (date 변경은 버튼 핸들러에서 loadDigest 직접 호출)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -52,13 +55,24 @@ export function DigestView() {
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
-          <button
-            onClick={() => signOutUser()}
-            aria-label="로그아웃"
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            {accessConfig && (
+              <button
+                onClick={() => setShowSettings(true)}
+                aria-label="설정"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+            )}
+            <button
+              onClick={() => signOutUser()}
+              aria-label="로그아웃"
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* 카테고리 탭 */}
@@ -94,6 +108,8 @@ export function DigestView() {
           filtered.map((item) => <ItemCard key={item.id} item={item} />)
         )}
       </main>
+
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

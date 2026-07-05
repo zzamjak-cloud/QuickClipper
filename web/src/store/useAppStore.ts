@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import type { User } from 'firebase/auth';
+import { FirebaseError } from 'firebase/app';
 import type { Category, DigestItem } from '../lib/types';
 import { kstToday } from '../lib/types';
 import { fetchDigestItems } from '../lib/digest';
 import { addClip, fetchClipIds, removeClip } from '../lib/clips';
+import type { AccessConfig } from '../lib/access';
+import { fetchAccessConfig } from '../lib/access';
 
 interface AppState {
   user: User | null;
@@ -13,11 +16,17 @@ interface AppState {
   items: DigestItem[];
   loading: boolean;
   clipIds: Set<string>;
+  /** 허용 목록에 없는 계정으로 로그인한 상태 */
+  accessDenied: boolean;
+  /** 관리자 여부 (config/access 읽기 성공 = 관리자) */
+  accessConfig: AccessConfig | null;
 
   setUser: (user: User | null) => void;
   setCategory: (category: Category | '전체') => void;
   loadDigest: (date: string) => Promise<void>;
   loadClipIds: () => Promise<void>;
+  checkAdmin: () => Promise<void>;
+  setAccessConfig: (config: AccessConfig) => void;
   toggleClip: (item: DigestItem) => Promise<void>;
   /** 번역 결과를 로컬 상태에 반영 (Firestore 캐시는 Functions가 기록) */
   applyTranslation: (itemId: string, titleKo: string, summaryKo: string) => void;
@@ -31,8 +40,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   items: [],
   loading: false,
   clipIds: new Set(),
+  accessDenied: false,
+  accessConfig: null,
 
-  setUser: (user) => set({ user, authReady: true }),
+  setUser: (user) => set({ user, authReady: true, accessDenied: false, accessConfig: null }),
   setCategory: (category) => set({ category }),
 
   loadDigest: async (date) => {
@@ -40,10 +51,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const items = await fetchDigestItems(date);
       set({ items });
+    } catch (e) {
+      // 허용 목록에 없는 계정 → 접근 거부 화면으로 전환
+      if (e instanceof FirebaseError && e.code === 'permission-denied') {
+        set({ accessDenied: true });
+      } else {
+        throw e;
+      }
     } finally {
       set({ loading: false });
     }
   },
+
+  checkAdmin: async () => {
+    const config = await fetchAccessConfig();
+    if (config) set({ accessConfig: config });
+  },
+
+  setAccessConfig: (config) => set({ accessConfig: config }),
 
   loadClipIds: async () => {
     const { user } = get();

@@ -4,9 +4,10 @@ import { auth } from './lib/firebase';
 import { useAppStore } from './store/useAppStore';
 import { LoginScreen } from './components/LoginScreen';
 import { DigestView } from './components/DigestView';
+import { AccessDeniedScreen } from './components/AccessDeniedScreen';
 
 function App() {
-  const { user, authReady, setUser } = useAppStore();
+  const { user, authReady, accessDenied, setUser } = useAppStore();
 
   useEffect(() => onAuthStateChanged(auth, setUser), [setUser]);
 
@@ -18,7 +19,9 @@ function App() {
     );
   }
 
-  return user ? <DigestView /> : <LoginScreen />;
+  if (!user) return <LoginScreen />;
+  if (accessDenied) return <AccessDeniedScreen />;
+  return <DigestView />;
 }
 
 export default App;

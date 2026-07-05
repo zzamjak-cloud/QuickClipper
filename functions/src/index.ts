@@ -86,6 +86,16 @@ export const translateItem = onCall(
       throw new HttpsError('unauthenticated', '로그인이 필요합니다');
     }
 
+    // 허용 목록 검증 — 허용되지 않은 계정의 API 호출(과금) 차단
+    const email = request.auth.token.email;
+    const accessSnap = await getFirestore().doc('config/access').get();
+    const access = (accessSnap.data() ?? {}) as { admins?: string[]; allowed?: string[] };
+    const isAllowed =
+      !!email && ((access.admins ?? []).includes(email) || (access.allowed ?? []).includes(email));
+    if (!isAllowed) {
+      throw new HttpsError('permission-denied', '허용되지 않은 계정입니다');
+    }
+
     const { date, itemId } = (request.data ?? {}) as { date?: string; itemId?: string };
     // 문서 경로에 들어가므로 형식을 엄격히 검증 (경로 조작 방지)
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
