@@ -50,6 +50,18 @@ export function DigestView() {
   categoryRef.current = category;
   const navRef = useRef<HTMLElement>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  // fixed 헤더의 실제 높이만큼 본문 상단 여백 확보
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerH, setHeaderH] = useState(104);
+
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => setHeaderH(el.offsetHeight));
+    observer.observe(el);
+    setHeaderH(el.offsetHeight);
+    return () => observer.disconnect();
+  }, []);
   /** 탭 전환 애니메이션 방향 ('right' = 새 리스트가 오른쪽에서 들어옴) */
   const [slideDir, setSlideDir] = useState<'right' | 'left' | null>(null);
 
@@ -119,7 +131,10 @@ export function DigestView() {
         }
       }}
     >
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
+      <header
+        ref={headerRef}
+        className="fixed inset-x-0 top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur"
+      >
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
           <h1 className="text-lg font-bold text-slate-900">QuickClipper</h1>
           <div className="flex items-center gap-1 text-sm text-slate-600">
@@ -196,7 +211,10 @@ export function DigestView() {
       </header>
 
       {/* overflow-hidden 마스크 안에서 새 리스트가 방향에 맞춰 슬라이드 인 */}
-      <main className="mx-auto max-w-2xl overflow-x-hidden px-4 py-4">
+      <main
+        className="mx-auto max-w-2xl overflow-x-hidden px-4 pb-4"
+        style={{ paddingTop: headerH + 16 }}
+      >
         <div
           key={category}
           className={`flex flex-col gap-3 ${

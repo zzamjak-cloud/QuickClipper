@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Newspaper, Search } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { ClipCard } from './ClipCard';
@@ -7,9 +7,18 @@ import { ClipCard } from './ClipCard';
 export function ClipsView() {
   const { clips, clipsLoading, loadClips, setView } = useAppStore();
   const [query, setQuery] = useState('');
+  // fixed 헤더의 실제 높이만큼 본문 상단 여백 확보
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerH, setHeaderH] = useState(112);
 
   useEffect(() => {
     loadClips();
+    const el = headerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => setHeaderH(el.offsetHeight));
+    observer.observe(el);
+    setHeaderH(el.offsetHeight);
+    return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -27,7 +36,10 @@ export function ClipsView() {
 
   return (
     <div className="min-h-dvh bg-slate-50">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
+      <header
+        ref={headerRef}
+        className="fixed inset-x-0 top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur"
+      >
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
           <h1 className="text-lg font-bold text-slate-900">보관함</h1>
           <button
@@ -52,7 +64,10 @@ export function ClipsView() {
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-4">
+      <main
+        className="mx-auto flex max-w-2xl flex-col gap-3 px-4 pb-4"
+        style={{ paddingTop: headerH + 16 }}
+      >
         {clipsLoading ? (
           <p className="py-16 text-center text-slate-400">불러오는 중…</p>
         ) : filtered.length === 0 ? (
