@@ -20,29 +20,43 @@ function jaccard(a: Set<string>, b: Set<string>): number {
 }
 
 const TITLE_SIMILARITY_THRESHOLD = 0.75;
+/** 다른 소스가 같은 소식을 보도할 때마다 부여하는 화제성 가점 */
+const CROSS_SOURCE_BOOST = 8;
 
 /**
  * 중복 제거: ① 정규화 URL 완전 일치 ② 같은 카테고리 내 제목 유사도.
- * 점수가 높은 항목을 남긴다.
+ * 점수가 높은 항목을 남기고, 서로 다른 소스의 중복(교차 보도)은 화제성 가점을 준다.
  */
 export function dedupeItems(items: DigestItem[]): DigestItem[] {
   // 점수 내림차순으로 정렬해 두면 "먼저 남긴 것이 항상 더 높은 점수"가 보장됨
   const sorted = [...items].sort((a, b) => b.score - a.score);
   const kept: { item: DigestItem; words: Set<string> }[] = [];
-  const seenUrls = new Set<string>();
+  const seenUrls = new Map<string, DigestItem>();
 
   for (const item of sorted) {
-    if (seenUrls.has(item.url)) continue;
+    const urlDup = seenUrls.get(item.url);
+    if (urlDup) {
+      if (urlDup.sourceId !== item.sourceId) {
+        urlDup.score = Math.min(urlDup.score + CROSS_SOURCE_BOOST, 100);
+      }
+      continue;
+    }
 
     const words = titleWords(item.title);
-    const isDup = kept.some(
+    const titleDup = kept.find(
       (k) =>
         k.item.category === item.category &&
         jaccard(k.words, words) >= TITLE_SIMILARITY_THRESHOLD,
     );
-    if (isDup) continue;
+    if (titleDup) {
+      // 교차 보도(다른 소스가 같은 소식) = 화제성 신호 → 남긴 항목에 가점
+      if (titleDup.item.sourceId !== item.sourceId) {
+        titleDup.item.score = Math.min(titleDup.item.score + CROSS_SOURCE_BOOST, 100);
+      }
+      continue;
+    }
 
-    seenUrls.add(item.url);
+    seenUrls.set(item.url, item);
     kept.push({ item, words });
   }
 

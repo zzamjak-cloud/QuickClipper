@@ -51,20 +51,30 @@ async function fetchAosChart(country: string, chart: 'topfree' | 'grossing'): Pr
   }));
 }
 
-/** 스팀 국가별 최고 판매 (스토어 featured API) */
-async function fetchSteamTopSellers(country: string): Promise<ChartItem[]> {
-  const url = `https://store.steampowered.com/api/featuredcategories?cc=${country}&l=koreana`;
+/** 스팀 스토어 검색 API — 차트별 상위 50개 (name + logo에서 appid 추출) */
+async function fetchSteamSearch(country: string, params: string): Promise<ChartItem[]> {
+  const url = `https://store.steampowered.com/search/results/?query&start=0&count=50&${params}&cc=${country}&l=koreana&json=1`;
   const res = await fetch(url, { signal: AbortSignal.timeout(10000), headers: UA });
-  if (!res.ok) throw new Error(`Steam topsellers ${country} HTTP ${res.status}`);
-  const json = await res.json();
-  const items = (json.top_sellers?.items ?? []) as Record<string, any>[];
-  return items.map((g, i) => ({
-    rank: i + 1,
-    name: g.name ?? '(이름 없음)',
-    url: `https://store.steampowered.com/app/${g.id}`,
-    icon: g.small_capsule_image ?? g.large_capsule_image,
-  }));
+  if (!res.ok) throw new Error(`Steam search(${params}) ${country} HTTP ${res.status}`);
+  const items = ((await res.json()).items ?? []) as { name: string; logo: string }[];
+  return items.map((g, i) => {
+    const appId = g.logo?.match(/apps\/(\d+)\//)?.[1];
+    return {
+      rank: i + 1,
+      name: g.name ?? '(이름 없음)',
+      url: appId ? `https://store.steampowered.com/app/${appId}` : 'https://store.steampowered.com',
+      icon: g.logo,
+    };
+  });
 }
+
+/** 스팀 차트 종류별 검색 파라미터 */
+const STEAM_CHARTS: Record<string, string> = {
+  topsellers: 'filter=topsellers',                  // 최고 판매
+  popularnew: 'filter=popularnew',                  // 인기 신작
+  earlyaccess: 'filter=topsellers&tags=493',        // 얼리액세스 판매 상위
+  demos: 'category1=10',                            // 인기 데모 (넥스트 페스트 기간엔 페스트 데모가 상위 노출)
+};
 
 /** 스팀 글로벌 최다 플레이 (공식 차트 API, 상위 20개 이름 조회) */
 async function fetchSteamMostPlayed(): Promise<ChartItem[]> {
@@ -104,7 +114,9 @@ export async function collectRankings(db: FirebaseFirestore.Firestore, date: str
       jobs.push({ chartId: `ios-${chart}-${cc}`, fetch: () => fetchIosChart(cc, chart) });
       jobs.push({ chartId: `aos-${chart}-${cc}`, fetch: () => fetchAosChart(cc, chart) });
     }
-    jobs.push({ chartId: `steam-topsellers-${cc}`, fetch: () => fetchSteamTopSellers(cc) });
+    for (const [chart, params] of Object.entries(STEAM_CHARTS)) {
+      jobs.push({ chartId: `steam-${chart}-${cc}`, fetch: () => fetchSteamSearch(cc, params) });
+    }
   }
   jobs.push({ chartId: 'steam-mostplayed-global', fetch: fetchSteamMostPlayed });
 

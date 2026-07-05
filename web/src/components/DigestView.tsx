@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bookmark, ChevronLeft, ChevronRight, LogOut, Settings } from 'lucide-react';
 import { CATEGORIES, kstToday, shiftDate } from '../lib/types';
 import { useAppStore } from '../store/useAppStore';
@@ -42,8 +42,72 @@ export function DigestView() {
 
   const isToday = date === kstToday();
 
+  // ── 좌우 스와이프/가로휠로 탭 이동 ──
+  const tabs = useMemo(() => ['전체', ...availableCategories] as const, [availableCategories]);
+  const tabsRef = useRef(tabs);
+  const categoryRef = useRef(category);
+  tabsRef.current = tabs;
+  categoryRef.current = category;
+  const navRef = useRef<HTMLElement>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+
+  function switchTab(dir: 1 | -1) {
+    const list = tabsRef.current;
+    const next = list[list.indexOf(categoryRef.current as (typeof list)[number]) + dir];
+    if (next) setCategory(next);
+  }
+
+  // PC: Shift+휠 / 터치패드 두 손가락 가로 스와이프
+  useEffect(() => {
+    let acc = 0;
+    let cooldownUntil = 0;
+    const onWheel = (e: WheelEvent) => {
+      // 탭 바 자체의 가로 스크롤은 그대로 두기
+      if ((e.target as HTMLElement).closest('[data-tabnav]')) return;
+      const dx = e.deltaX !== 0 ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+      if (dx === 0 || Math.abs(dx) < Math.abs(e.deltaY) * 0.8) return;
+      const now = performance.now();
+      if (now < cooldownUntil) return;
+      acc += dx;
+      if (Math.abs(acc) > 100) {
+        switchTab(acc > 0 ? 1 : -1);
+        acc = 0;
+        cooldownUntil = now + 600; // 관성 스크롤로 연속 전환되는 것 방지
+      }
+    };
+    window.addEventListener('wheel', onWheel, { passive: true });
+    return () => window.removeEventListener('wheel', onWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 활성 탭이 바뀌면 탭 바에서 보이도록 스크롤
+  useEffect(() => {
+    navRef.current
+      ?.querySelector('[data-active="true"]')
+      ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [category]);
+
   return (
-    <div className="min-h-dvh bg-slate-50">
+    <div
+      className="min-h-dvh bg-slate-50"
+      // 모바일: 좌우 스와이프로 탭 이동 (세로 스크롤과 구분되게 가로 우세 + 60px 이상일 때만)
+      onTouchStart={(e) => {
+        if ((e.target as HTMLElement).closest('[data-tabnav]')) return;
+        const t = e.touches[0];
+        touchStart.current = { x: t.clientX, y: t.clientY };
+      }}
+      onTouchEnd={(e) => {
+        const start = touchStart.current;
+        touchStart.current = null;
+        if (!start) return;
+        const t = e.changedTouches[0];
+        const dx = t.clientX - start.x;
+        const dy = t.clientY - start.y;
+        if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy)) {
+          switchTab(dx < 0 ? 1 : -1);
+        }
+      }}
+    >
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
           <h1 className="text-lg font-bold text-slate-900">QuickClipper</h1>
@@ -100,11 +164,12 @@ export function DigestView() {
         </div>
 
         {/* 카테고리 탭 */}
-        <nav className="mx-auto max-w-2xl overflow-x-auto px-4 pb-2">
+        <nav ref={navRef} data-tabnav className="mx-auto max-w-2xl overflow-x-auto px-4 pb-2">
           <div className="flex gap-1.5 whitespace-nowrap">
-            {(['전체', ...availableCategories] as const).map((cat) => (
+            {tabs.map((cat) => (
               <button
                 key={cat}
+                data-active={category === cat}
                 onClick={() => setCategory(cat)}
                 className={`rounded-full px-3 py-1 text-sm font-medium transition ${
                   category === cat

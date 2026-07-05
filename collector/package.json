@@ -6,6 +6,7 @@
   "description": "QuickClipper 일일 수집 파이프라인 (GitHub Actions cron 실행)",
   "scripts": {
     "collect": "tsx src/index.ts",
+    "collect:rankings": "tsx src/run-rankings.ts",
     "seed:sources": "tsx src/seed-sources.ts",
     "typecheck": "tsc --noEmit"
   },

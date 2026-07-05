@@ -3,6 +3,7 @@ import { fetchRss } from './sources/rss.js';
 import { fetchHackerNews } from './sources/hackernews.js';
 import { fetchReddit, hasRedditCredentials } from './sources/reddit.js';
 import { fetchNaverNews, hasNaverCredentials } from './sources/navernews.js';
+import { fetchGeekNews } from './sources/geeknews.js';
 import { normalizeItems } from './pipeline/normalize.js';
 import { dedupeItems } from './pipeline/dedupe.js';
 import { toDigestItems } from './pipeline/score.js';
@@ -17,6 +18,12 @@ const FETCHERS: Record<SourceDef['type'], (s: SourceDef) => Promise<RawItem[]>> 
   reddit: fetchReddit,
   navernews: fetchNaverNews,
 };
+
+/** 소스별 fetcher 선택 — GeekNews는 추천수 파싱을 위해 전용 fetcher 사용 */
+function fetcherFor(source: SourceDef): (s: SourceDef) => Promise<RawItem[]> {
+  if (source.id === 'geeknews') return fetchGeekNews;
+  return FETCHERS[source.type];
+}
 
 /**
  * 수집 소스 로드: Firestore sources 컬렉션 우선 (관리자 UI에서 편집 가능),
@@ -70,7 +77,7 @@ async function main() {
   // 소스별 수집: 하나가 실패해도 나머지는 계속 진행
   const results = await Promise.allSettled(
     sources.map(async (source) => {
-      const raws = await FETCHERS[source.type](source);
+      const raws = await fetcherFor(source)(source);
       return toDigestItems(normalizeItems(raws), source, now);
     }),
   );

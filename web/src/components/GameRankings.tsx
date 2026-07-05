@@ -20,14 +20,23 @@ const MOBILE_CHARTS = [
   { value: 'grossing', label: '최고 매출' },
 ] as const;
 
+const STEAM_CHARTS = [
+  { value: 'topsellers', label: '최고 판매' },
+  { value: 'popularnew', label: '인기 신작' },
+  { value: 'earlyaccess', label: '얼리액세스' },
+  { value: 'demos', label: '인기 데모 (넥스트 페스트)' },
+  { value: 'mostplayed', label: '최다 플레이 (글로벌)' },
+] as const;
+
 const selectCls =
   'rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none';
 
-/** 게임 탭의 순위 보기 — 모바일(iOS/aOS 국가별) / 스팀(국가별·글로벌) */
+/** 게임 탭의 순위 보기 — 모바일(iOS/aOS 국가별) / 스팀(차트·국가별) */
 export function GameRankings({ mode }: { mode: Mode }) {
   const [country, setCountry] = useState('kr');
   const [platform, setPlatform] = useState('ios');
   const [chart, setChart] = useState('topfree');
+  const [steamChart, setSteamChart] = useState('topsellers');
   const [items, setItems] = useState<ChartItem[] | null>(null);
   const [dataDate, setDataDate] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,9 +44,9 @@ export function GameRankings({ mode }: { mode: Mode }) {
   const chartId =
     mode === 'mobile'
       ? `${platform}-${chart}-${country}`
-      : country === 'global'
+      : steamChart === 'mostplayed'
         ? 'steam-mostplayed-global'
-        : `steam-topsellers-${country}`;
+        : `steam-${steamChart}-${country}`;
 
   useEffect(() => {
     setLoading(true);
@@ -53,14 +62,29 @@ export function GameRankings({ mode }: { mode: Mode }) {
     <div>
       {/* 필터 드롭다운 */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <select value={country} onChange={(e) => setCountry(e.target.value)} className={selectCls}>
-          {COUNTRIES.map((c) => (
-            <option key={c.value} value={c.value}>
-              {c.label}
-            </option>
-          ))}
-          {mode === 'steam' && <option value="global">글로벌 (최다 플레이)</option>}
-        </select>
+        {mode === 'steam' && (
+          <select
+            value={steamChart}
+            onChange={(e) => setSteamChart(e.target.value)}
+            className={selectCls}
+          >
+            {STEAM_CHARTS.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {!(mode === 'steam' && steamChart === 'mostplayed') && (
+          <select value={country} onChange={(e) => setCountry(e.target.value)} className={selectCls}>
+            {COUNTRIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        )}
 
         {mode === 'mobile' && (
           <>
