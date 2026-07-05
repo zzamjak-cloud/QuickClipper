@@ -134,6 +134,8 @@ async function main() {
       console.warn('[collect] SKIP_AI_EXTRAS=1 — 배치 번역·AI 부가기능 건너뜀');
     } else if (hasGeminiCredentials()) {
       await translateItems(deduped);
+      await saveDigest(db!, date, deduped);
+      console.log(`[collect] 번역 다이제스트 업데이트 완료 (${date})`);
       const { generateBriefing, summarizeClusters } = await import('./pipeline/ai-extras.js');
       await summarizeClusters(deduped);
       briefing = await generateBriefing(deduped);

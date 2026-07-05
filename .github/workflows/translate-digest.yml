@@ -1,6 +1,8 @@
 name: Translate Digest
 
 on:
+  schedule:
+    - cron: "10 22 * * *" # 07:10 KST 번역 보강
   workflow_dispatch:
     inputs:
       date:
