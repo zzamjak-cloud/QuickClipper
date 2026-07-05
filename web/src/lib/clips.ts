@@ -2,6 +2,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   serverTimestamp,
   setDoc,
@@ -19,7 +20,34 @@ export async function fetchClipIds(uid: string): Promise<Set<string>> {
 /** 스크랩 전체 조회 (보관함 화면용, 최신순 정렬은 호출부에서) */
 export async function fetchClips(uid: string): Promise<Clip[]> {
   const snap = await getDocs(collection(db, `users/${uid}/clips`));
-  return snap.docs.map((d) => ({ ...(d.data() as Omit<Clip, 'id'>), id: d.id }));
+  const clips = snap.docs.map((d) => ({ ...(d.data() as Omit<Clip, 'id'>), id: d.id }));
+  return hydrateClipTranslations(uid, clips);
+}
+
+async function hydrateClipTranslations(uid: string, clips: Clip[]): Promise<Clip[]> {
+  return Promise.all(
+    clips.map(async (clip) => {
+      if (!clip.digestDate || (clip.titleKo && clip.summaryKo !== undefined)) return clip;
+
+      try {
+        const digestSnap = await getDoc(doc(db, `digests/${clip.digestDate}/items/${clip.id}`));
+        if (!digestSnap.exists()) return clip;
+
+        const item = digestSnap.data() as Partial<DigestItem>;
+        const patch: Record<string, unknown> = {};
+        if (!clip.titleKo && item.titleKo) patch.titleKo = item.titleKo;
+        if (clip.summaryKo === undefined && item.summaryKo !== undefined) {
+          patch.summaryKo = item.summaryKo;
+        }
+
+        if (Object.keys(patch).length === 0) return clip;
+        await updateDoc(doc(db, `users/${uid}/clips/${clip.id}`), patch);
+        return { ...clip, ...patch };
+      } catch {
+        return clip;
+      }
+    }),
+  );
 }
 
 /** 다이제스트 항목을 스냅샷으로 스크랩 (링크가 죽어도 내용 보존) */
