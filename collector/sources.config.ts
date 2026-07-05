@@ -25,11 +25,19 @@ export const SOURCES: SourceDef[] = [
 
   // ── AI ──────────────────────────────────────────────
   {
-    id: 'reddit-artificial',
-    name: 'r/artificial',
-    type: 'reddit',
+    id: 'techcrunch-ai',
+    name: 'TechCrunch AI',
+    type: 'rss',
     category: 'AI',
-    target: 'artificial',
+    target: 'https://techcrunch.com/category/artificial-intelligence/feed/',
+    lang: 'en',
+  },
+  {
+    id: 'verge-ai',
+    name: 'The Verge AI',
+    type: 'rss',
+    category: 'AI',
+    target: 'https://www.theverge.com/rss/ai-artificial-intelligence/index.xml',
     lang: 'en',
   },
   {
@@ -43,6 +51,14 @@ export const SOURCES: SourceDef[] = [
 
   // ── 글로벌 핫이슈 ────────────────────────────────────
   {
+    id: 'bbc-world',
+    name: 'BBC World',
+    type: 'rss',
+    category: '글로벌 핫이슈',
+    target: 'https://feeds.bbci.co.uk/news/world/rss.xml',
+    lang: 'en',
+  },
+  {
     id: 'reddit-worldnews',
     name: 'r/worldnews',
     type: 'reddit',
@@ -53,19 +69,27 @@ export const SOURCES: SourceDef[] = [
 
   // ── 게임 ────────────────────────────────────────────
   {
+    id: 'gamespot-news',
+    name: 'GameSpot',
+    type: 'rss',
+    category: '게임',
+    target: 'https://www.gamespot.com/feeds/game-news/',
+    lang: 'en',
+  },
+  {
+    id: 'gamedeveloper',
+    name: 'Game Developer',
+    type: 'rss',
+    category: '게임',
+    target: 'https://www.gamedeveloper.com/rss.xml',
+    lang: 'en',
+  },
+  {
     id: 'reddit-games',
     name: 'r/Games',
     type: 'reddit',
     category: '게임',
     target: 'Games',
-    lang: 'en',
-  },
-  {
-    id: 'reddit-gamedev',
-    name: 'r/gamedev',
-    type: 'reddit',
-    category: '게임',
-    target: 'gamedev',
     lang: 'en',
   },
 
@@ -80,6 +104,14 @@ export const SOURCES: SourceDef[] = [
   },
 
   // ── 아트 ────────────────────────────────────────────
+  {
+    id: 'colossal',
+    name: 'Colossal',
+    type: 'rss',
+    category: '아트',
+    target: 'https://www.thisiscolossal.com/feed/',
+    lang: 'en',
+  },
   {
     id: 'reddit-digitalart',
     name: 'r/DigitalArt',
