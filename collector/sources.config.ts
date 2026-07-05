@@ -85,6 +85,22 @@ export const SOURCES: SourceDef[] = [
     lang: 'en',
   },
   {
+    id: 'inven',
+    name: '인벤',
+    type: 'rss',
+    category: '게임',
+    target: 'http://feeds.feedburner.com/inven',
+    lang: 'ko',
+  },
+  {
+    id: 'gamemeca',
+    name: '게임메카',
+    type: 'rss',
+    category: '게임',
+    target: 'https://www.gamemeca.com/rss.php',
+    lang: 'ko',
+  },
+  {
     id: 'reddit-games',
     name: 'r/Games',
     type: 'reddit',

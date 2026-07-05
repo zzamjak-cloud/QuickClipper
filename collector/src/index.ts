@@ -115,6 +115,15 @@ async function main() {
   }
 
   await saveDigest(db, date, deduped);
+
+  // 게임 순위 수집 (실패해도 다이제스트에는 영향 없음)
+  try {
+    const { collectRankings } = await import('./rankings.js');
+    await collectRankings(db, date);
+  } catch (err) {
+    console.warn(`[rankings] 순위 수집 실패: ${err}`);
+  }
+
   const removed = await cleanupOldDigests(db, now);
   console.log(`[collect] 저장 완료 (${date}), 만료 다이제스트 ${removed}건 정리`);
 

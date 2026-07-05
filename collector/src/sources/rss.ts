@@ -30,7 +30,7 @@ function extractImage(item: Record<string, unknown>): string | undefined {
 /** RSS 피드에서 항목 수집 */
 export async function fetchRss(source: SourceDef): Promise<RawItem[]> {
   const feed = await parser.parseURL(source.target);
-  const limit = source.limit ?? 20;
+  const limit = source.limit ?? 30;
 
   return (feed.items ?? []).slice(0, limit).map((item) => ({
     title: ((item.title as string) ?? '(제목 없음)').trim(),

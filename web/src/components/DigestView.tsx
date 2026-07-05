@@ -5,11 +5,21 @@ import { useAppStore } from '../store/useAppStore';
 import { signOutUser } from '../lib/firebase';
 import { ItemCard } from './ItemCard';
 import { SettingsModal } from './SettingsModal';
+import { GameRankings } from './GameRankings';
+
+const PAGE_SIZE = 30;
 
 export function DigestView() {
   const { date, category, items, loading, accessConfig, setCategory, setView, loadDigest, loadClipIds, checkAdmin } =
     useAppStore();
   const [showSettings, setShowSettings] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [gameMode, setGameMode] = useState<'news' | 'mobile' | 'steam'>('news');
+
+  // 탭·날짜가 바뀌면 표시 개수 초기화
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [category, date]);
 
   useEffect(() => {
     loadDigest(date);
@@ -110,7 +120,34 @@ export function DigestView() {
       </header>
 
       <main className="mx-auto flex max-w-2xl flex-col gap-3 px-4 py-4">
-        {loading ? (
+        {/* 게임 탭 전용 하위 메뉴: 뉴스 / 모바일 순위 / 스팀 순위 */}
+        {category === '게임' && (
+          <div className="flex gap-1.5">
+            {(
+              [
+                ['news', '뉴스'],
+                ['mobile', '모바일 순위'],
+                ['steam', '스팀 순위'],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setGameMode(value)}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                  gameMode === value
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white text-slate-600 shadow-sm hover:bg-slate-100'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {category === '게임' && gameMode !== 'news' ? (
+          <GameRankings mode={gameMode} />
+        ) : loading ? (
           <p className="py-16 text-center text-slate-400">불러오는 중…</p>
         ) : filtered.length === 0 ? (
           <p className="py-16 text-center text-slate-400">
@@ -119,7 +156,19 @@ export function DigestView() {
               : '이 카테고리에 항목이 없습니다'}
           </p>
         ) : (
-          filtered.map((item) => <ItemCard key={item.id} item={item} />)
+          <>
+            {filtered.slice(0, visibleCount).map((item) => (
+              <ItemCard key={item.id} item={item} />
+            ))}
+            {filtered.length > visibleCount && (
+              <button
+                onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+                className="rounded-xl border border-slate-200 bg-white py-3 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-100"
+              >
+                더보기 ({visibleCount} / {filtered.length})
+              </button>
+            )}
+          </>
         )}
       </main>
 

@@ -46,6 +46,17 @@ service cloud.firestore {
       }
     }
 
+    // 게임 순위: 허용된 계정만 읽기 (쓰기는 수집기의 Admin SDK)
+    match /rankings/{date} {
+      allow read: if isAllowed();
+      allow write: if false;
+
+      match /charts/{chartId} {
+        allow read: if isAllowed();
+        allow write: if false;
+      }
+    }
+
     // 수집 소스 정의: 허용된 계정 읽기, 관리자만 편집 (설정 UI에서 추가/제거)
     match /sources/{sourceId} {
       allow read: if isAllowed();

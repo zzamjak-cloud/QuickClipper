@@ -65,17 +65,23 @@ export async function saveDigest(
   }
 }
 
-/** 보존 기간이 지난 다이제스트 삭제 (스크랩은 users/ 아래 스냅샷이라 영향 없음) */
+/** 보존 기간이 지난 다이제스트·순위 삭제 (스크랩은 users/ 아래 스냅샷이라 영향 없음) */
 export async function cleanupOldDigests(
   db: FirebaseFirestore.Firestore,
   now: Date,
 ): Promise<number> {
   const cutoff = kstDateString(new Date(now.getTime() - RETENTION_DAYS * 86400_000));
-  const old = await db.collection('digests').where('date', '<', cutoff).get();
 
-  for (const doc of old.docs) {
+  const oldDigests = await db.collection('digests').where('date', '<', cutoff).get();
+  for (const doc of oldDigests.docs) {
     // 하위 items 서브컬렉션까지 재귀 삭제
     await db.recursiveDelete(doc.ref);
   }
-  return old.size;
+
+  const oldRankings = await db.collection('rankings').where('date', '<', cutoff).get();
+  for (const doc of oldRankings.docs) {
+    await db.recursiveDelete(doc.ref);
+  }
+
+  return oldDigests.size;
 }
