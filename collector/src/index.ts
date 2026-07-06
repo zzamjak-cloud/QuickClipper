@@ -4,6 +4,7 @@ import { fetchHackerNews } from './sources/hackernews.js';
 import { fetchReddit, hasRedditCredentials } from './sources/reddit.js';
 import { fetchNaverNews, hasNaverCredentials } from './sources/navernews.js';
 import { fetchGeekNews } from './sources/geeknews.js';
+import { fetchGameJobs } from './sources/gamejobs.js';
 import { normalizeItems } from './pipeline/normalize.js';
 import { dedupeItems } from './pipeline/dedupe.js';
 import { toDigestItems } from './pipeline/score.js';
@@ -23,6 +24,7 @@ const FETCHERS: Record<SourceDef['type'], (s: SourceDef) => Promise<RawItem[]>> 
   hackernews: fetchHackerNews,
   reddit: fetchReddit,
   navernews: fetchNaverNews,
+  gamejobs: fetchGameJobs,
 };
 
 /** 소스별 fetcher 선택 — GeekNews는 추천수 파싱을 위해 전용 fetcher 사용 */
@@ -32,22 +34,27 @@ function fetcherFor(source: SourceDef): (s: SourceDef) => Promise<RawItem[]> {
 }
 
 /**
- * 수집 소스 로드: Firestore sources 컬렉션 우선 (관리자 UI에서 편집 가능),
- * 비어 있거나 접근 불가하면 sources.config.ts 폴백.
+ * 수집 소스 로드: sources.config.ts 기본 소스에 Firestore sources 컬렉션을 병합한다.
+ * 같은 id는 Firestore 값을 우선해 관리자 UI 편집분을 보존한다.
  */
 async function loadSources(db: FirebaseFirestore.Firestore | null): Promise<SourceDef[]> {
+  const merged = new Map(SOURCES.map((source) => [source.id, source]));
   if (db) {
     try {
       const snap = await db.collection('sources').get();
       if (!snap.empty) {
-        console.log(`[collect] Firestore 소스 ${snap.size}개 로드`);
-        return snap.docs.map((doc) => doc.data() as SourceDef);
+        for (const doc of snap.docs) {
+          const data = doc.data() as SourceDef;
+          merged.set(data.id ?? doc.id, { ...data, id: data.id ?? doc.id });
+        }
+        console.log(`[collect] 기본+Firestore 소스 ${merged.size}개 로드 (Firestore ${snap.size}개)`);
+        return [...merged.values()];
       }
     } catch (err) {
       console.warn(`[collect] Firestore 소스 로드 실패 — 설정 파일 폴백: ${err}`);
     }
   }
-  return SOURCES;
+  return [...merged.values()];
 }
 
 /** 자격증명이 없는 타입의 소스를 제외 */

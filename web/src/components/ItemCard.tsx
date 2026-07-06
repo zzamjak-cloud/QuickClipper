@@ -20,6 +20,15 @@ export function ItemCard({ item }: Props) {
   const favicon = faviconUrl(item.url);
   const showImage = !!item.imageUrl && !imgError;
   const related = item.relatedSources ?? [];
+  const jobBadges = [
+    item.jobCompany,
+    item.jobCompanySize,
+    item.jobRole,
+    item.jobMobileCasual ? '모바일/캐주얼' : null,
+    item.jobEmployment,
+    item.jobLocation,
+    item.jobUpdatedAt ? `기준 ${item.jobUpdatedAt}` : null,
+  ].filter(Boolean);
 
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow-md">
@@ -34,6 +43,18 @@ export function ItemCard({ item }: Props) {
           <h2 className="line-clamp-2 font-semibold leading-snug text-slate-900">{title}</h2>
           {summary && (
             <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-slate-500">{summary}</p>
+          )}
+          {item.category === '구인' && jobBadges.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {jobBadges.map((badge) => (
+                <span
+                  key={String(badge)}
+                  className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600"
+                >
+                  {badge}
+                </span>
+              ))}
+            </div>
           )}
         </div>
         {showImage && (

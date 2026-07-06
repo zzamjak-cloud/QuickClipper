@@ -10,10 +10,13 @@ export type Category =
   | 'IT'
   | '증권'
   | '여행'
-  | '맛집';
+  | '맛집'
+  | '구인';
 
 /** 수집 소스 타입 */
-export type SourceType = 'rss' | 'hackernews' | 'reddit' | 'navernews';
+export type SourceType = 'rss' | 'hackernews' | 'reddit' | 'navernews' | 'gamejobs';
+
+export type CompanySize = '대기업' | '중소기업' | '스타트업';
 
 /** 소스 정의 — sources.config.ts에서 선언 */
 export interface SourceDef {
@@ -29,6 +32,10 @@ export interface SourceDef {
   enabled?: boolean;
   /** 요약문 언어 — 번역하기 버튼 노출 여부 판단용 */
   lang: 'ko' | 'en';
+  /** 구인 소스 전용: 기업 규모 필터 */
+  companySize?: CompanySize;
+  /** 구인 소스 전용: 모바일/캐주얼 게임사 우선 표시 */
+  mobileCasual?: boolean;
 }
 
 /** 수집 직후의 원시 항목 */
@@ -41,6 +48,13 @@ export interface RawItem {
   sourceScore: number | null;
   /** 피드에서 추출한 썸네일 (없으면 og:image 보강 단계에서 채움) */
   imageUrl?: string;
+  jobCompany?: string;
+  jobCompanySize?: CompanySize;
+  jobRole?: string;
+  jobLocation?: string;
+  jobEmployment?: string;
+  jobUpdatedAt?: string;
+  jobMobileCasual?: boolean;
 }
 
 /** 정규화·점수화가 끝나 Firestore에 저장되는 항목 */
@@ -65,6 +79,13 @@ export interface DigestItem {
   relatedSources?: { name: string; url: string }[];
   /** 클러스터 종합 요약 (2개 소스 이상 이슈) */
   clusterSummary?: string;
+  jobCompany?: string;
+  jobCompanySize?: CompanySize;
+  jobRole?: string;
+  jobLocation?: string;
+  jobEmployment?: string;
+  jobUpdatedAt?: string;
+  jobMobileCasual?: boolean;
 }
 
 /** 오늘의 AI 브리핑 */

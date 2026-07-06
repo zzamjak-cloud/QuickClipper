@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bookmark, ChevronLeft, ChevronRight, FileText, RefreshCw, Settings } from 'lucide-react';
 import { CATEGORIES, kstToday, personalScore, shiftDate } from '../lib/types';
+import type { CompanySize, DigestItem } from '../lib/types';
 import type { Tab } from '../store/useAppStore';
 import { useAppStore } from '../store/useAppStore';
 import { ItemCard } from './ItemCard';
@@ -9,6 +10,12 @@ import { GameRankings } from './GameRankings';
 import { BriefingCard } from './BriefingCard';
 
 const PAGE_SIZE = 20;
+const JOB_SIZE_FILTERS = ['전체', '대기업', '중소기업', '스타트업'] as const;
+type JobSizeFilter = (typeof JOB_SIZE_FILTERS)[number];
+
+function publishedAtMs(item: DigestItem): number {
+  return item.publishedAt?.toMillis() ?? 0;
+}
 
 export function DigestView() {
   const { date, category, items, loading, briefing, profile, setCategory, setView, loadDigest, loadClipIds, checkAdmin, ensureProfile } =
@@ -18,11 +25,12 @@ export function DigestView() {
   const [gameMode, setGameMode] = useState<
     'news' | 'mobileHot' | 'steamHot' | 'mobile' | 'steam'
   >('news');
+  const [jobSize, setJobSize] = useState<JobSizeFilter>('전체');
 
   // 탭·날짜·게임 하위 탭이 바뀌면 표시 개수 초기화
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [category, date, gameMode]);
+  }, [category, date, gameMode, jobSize]);
 
   useEffect(() => {
     loadDigest(date);
@@ -59,6 +67,19 @@ export function DigestView() {
   const STEAM_HOT_RE = /스팀|steam|얼리\s?액세스|early access|넥스트\s?페스트|next fest|데모|demo/i;
 
   const displayList = useMemo(() => {
+    if (category === '구인') {
+      const jobs =
+        jobSize === '전체'
+          ? filtered
+          : filtered.filter((it) => it.jobCompanySize === (jobSize as CompanySize));
+      return [...jobs].sort((a, b) => {
+        const dateDiff = publishedAtMs(b) - publishedAtMs(a);
+        if (dateDiff !== 0) return dateDiff;
+        const casualDiff = Number(b.jobMobileCasual === true) - Number(a.jobMobileCasual === true);
+        if (casualDiff !== 0) return casualDiff;
+        return b.score - a.score;
+      });
+    }
     if (category !== '게임' || (gameMode !== 'mobileHot' && gameMode !== 'steamHot')) {
       return filtered;
     }
@@ -67,7 +88,7 @@ export function DigestView() {
       re.test(`${it.title} ${it.summary} ${it.titleKo ?? ''} ${it.summaryKo ?? ''}`),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered, category, gameMode]);
+  }, [filtered, category, gameMode, jobSize]);
 
   const isToday = date === kstToday();
 
@@ -289,6 +310,24 @@ export function DigestView() {
                 }`}
               >
                 {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {category === '구인' && (
+          <div className="flex flex-wrap gap-1.5">
+            {JOB_SIZE_FILTERS.map((value) => (
+              <button
+                key={value}
+                onClick={() => setJobSize(value)}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                  jobSize === value
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white text-slate-600 shadow-sm hover:bg-slate-100'
+                }`}
+              >
+                {value}
               </button>
             ))}
           </div>

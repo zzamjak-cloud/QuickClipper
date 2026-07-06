@@ -38,5 +38,12 @@ export function toDigestItems(
     publishedAt: raw.publishedAt,
     collectedAt: now,
     imageUrl: raw.imageUrl,
+    jobCompany: raw.jobCompany,
+    jobCompanySize: raw.jobCompanySize,
+    jobRole: raw.jobRole,
+    jobLocation: raw.jobLocation,
+    jobEmployment: raw.jobEmployment,
+    jobUpdatedAt: raw.jobUpdatedAt,
+    jobMobileCasual: raw.jobMobileCasual,
   }));
 }

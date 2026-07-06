@@ -11,9 +11,11 @@ export const CATEGORIES = [
   '증권',
   '여행',
   '맛집',
+  '구인',
 ] as const;
 
 export type Category = (typeof CATEGORIES)[number];
+export type CompanySize = '대기업' | '중소기업' | '스타트업';
 
 /** digests/{date}/items/{id} 문서 */
 export interface DigestItem {
@@ -37,6 +39,13 @@ export interface DigestItem {
   relatedSources?: { name: string; url: string }[];
   /** 교차 보도 이슈의 AI 종합 요약 */
   clusterSummary?: string;
+  jobCompany?: string;
+  jobCompanySize?: CompanySize;
+  jobRole?: string;
+  jobLocation?: string;
+  jobEmployment?: string;
+  jobUpdatedAt?: string;
+  jobMobileCasual?: boolean;
 }
 
 /** 오늘의 AI 브리핑 (digests/{date}.briefing) */
@@ -97,6 +106,13 @@ export interface Clip {
   clippedAt: Timestamp;
   /** 썸네일 이미지 */
   imageUrl?: string;
+  jobCompany?: string;
+  jobCompanySize?: CompanySize;
+  jobRole?: string;
+  jobLocation?: string;
+  jobEmployment?: string;
+  jobUpdatedAt?: string;
+  jobMobileCasual?: boolean;
   /** 사용자 태그 */
   tags?: string[];
   /** 사용자 메모 */
@@ -107,12 +123,14 @@ export interface Clip {
 export interface SourceDef {
   id: string;
   name: string;
-  type: 'rss' | 'hackernews' | 'reddit' | 'navernews';
+  type: 'rss' | 'hackernews' | 'reddit' | 'navernews' | 'gamejobs';
   category: Category;
   target: string;
   limit?: number;
   enabled?: boolean;
   lang: 'ko' | 'en';
+  companySize?: CompanySize;
+  mobileCasual?: boolean;
   /** 관리자가 설정 UI에서 직접 추가한 소스 (이 경우에만 삭제 허용) */
   custom?: boolean;
 }

@@ -39,6 +39,15 @@ async function hydrateClipTranslations(uid: string, clips: Clip[]): Promise<Clip
         if (clip.summaryKo === undefined && item.summaryKo !== undefined) {
           patch.summaryKo = item.summaryKo;
         }
+        if (!clip.jobCompany && item.jobCompany) patch.jobCompany = item.jobCompany;
+        if (!clip.jobCompanySize && item.jobCompanySize) patch.jobCompanySize = item.jobCompanySize;
+        if (!clip.jobRole && item.jobRole) patch.jobRole = item.jobRole;
+        if (!clip.jobLocation && item.jobLocation) patch.jobLocation = item.jobLocation;
+        if (!clip.jobEmployment && item.jobEmployment) patch.jobEmployment = item.jobEmployment;
+        if (!clip.jobUpdatedAt && item.jobUpdatedAt) patch.jobUpdatedAt = item.jobUpdatedAt;
+        if (clip.jobMobileCasual === undefined && item.jobMobileCasual !== undefined) {
+          patch.jobMobileCasual = item.jobMobileCasual;
+        }
 
         if (Object.keys(patch).length === 0) return clip;
         await updateDoc(doc(db, `users/${uid}/clips/${clip.id}`), patch);
@@ -66,6 +75,13 @@ export async function addClip(uid: string, item: DigestItem, digestDate: string)
   if (item.titleKo) data.titleKo = item.titleKo;
   if (item.summaryKo) data.summaryKo = item.summaryKo;
   if (item.imageUrl) data.imageUrl = item.imageUrl;
+  if (item.jobCompany) data.jobCompany = item.jobCompany;
+  if (item.jobCompanySize) data.jobCompanySize = item.jobCompanySize;
+  if (item.jobRole) data.jobRole = item.jobRole;
+  if (item.jobLocation) data.jobLocation = item.jobLocation;
+  if (item.jobEmployment) data.jobEmployment = item.jobEmployment;
+  if (item.jobUpdatedAt) data.jobUpdatedAt = item.jobUpdatedAt;
+  if (item.jobMobileCasual !== undefined) data.jobMobileCasual = item.jobMobileCasual;
   await setDoc(doc(db, `users/${uid}/clips/${item.id}`), data);
 }
 
