@@ -2,7 +2,8 @@ name: Translate Digest
 
 on:
   schedule:
-    - cron: "10 22 * * *" # 07:10 KST 번역 보강
+    # 수집(최악 06:00 KST 완료) 이후 여유를 두고, 크론 지연을 감안해 06:10에 예약 (지연돼도 07:00대 완료)
+    - cron: "10 21 * * *" # 06:10 KST 번역 보강
   workflow_dispatch:
     inputs:
       date:
