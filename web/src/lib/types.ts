@@ -11,7 +11,7 @@ export const CATEGORIES = [
   '증권',
   '여행',
   '맛집',
-  '구인',
+  '밈',
 ] as const;
 
 export type Category = (typeof CATEGORIES)[number];

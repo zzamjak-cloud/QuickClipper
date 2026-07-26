@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bookmark, ChevronLeft, ChevronRight, FileText, RefreshCw, Settings } from 'lucide-react';
 import { CATEGORIES, kstToday, personalScore, shiftDate } from '../lib/types';
-import type { CompanySize, DigestItem } from '../lib/types';
+import type { DigestItem } from '../lib/types';
 import type { Tab } from '../store/useAppStore';
 import { useAppStore } from '../store/useAppStore';
 import { ItemCard } from './ItemCard';
@@ -10,11 +10,23 @@ import { GameRankings } from './GameRankings';
 import { BriefingCard } from './BriefingCard';
 
 const PAGE_SIZE = 20;
-const JOB_SIZE_FILTERS = ['전체', '대기업', '중소기업', '스타트업'] as const;
-type JobSizeFilter = (typeof JOB_SIZE_FILTERS)[number];
+const MOBILE_HOT_RE =
+  /모바일\s?게임|모바일|mobile|iOS|안드로이드|android|앱\s?스토어|app store|구글\s?플레이|google play|원스토어|앱마켓|가챠|gacha/i;
+const STEAM_HOT_RE =
+  /스팀|steam|steamdb|스팀덱|steam deck|얼리\s?액세스|early access|넥스트\s?페스트|next fest|스팀\s?페이지|위시리스트|찜하기|데모|demo/i;
 
-function publishedAtMs(item: DigestItem): number {
-  return item.publishedAt?.toMillis() ?? 0;
+function gameSignalText(item: DigestItem): string {
+  return `${item.title} ${item.summary} ${item.titleKo ?? ''} ${item.summaryKo ?? ''} ${item.sourceName}`;
+}
+
+function isMobileHotGameItem(item: DigestItem): boolean {
+  const text = gameSignalText(item);
+  return MOBILE_HOT_RE.test(text) && !STEAM_HOT_RE.test(text);
+}
+
+function isSteamHotGameItem(item: DigestItem): boolean {
+  const text = gameSignalText(item);
+  return STEAM_HOT_RE.test(text) && !MOBILE_HOT_RE.test(text);
 }
 
 export function DigestView() {
@@ -25,12 +37,11 @@ export function DigestView() {
   const [gameMode, setGameMode] = useState<
     'news' | 'mobileHot' | 'steamHot' | 'mobile' | 'steam'
   >('news');
-  const [jobSize, setJobSize] = useState<JobSizeFilter>('전체');
 
   // 탭·날짜·게임 하위 탭이 바뀌면 표시 개수 초기화
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [category, date, gameMode, jobSize]);
+  }, [category, date, gameMode]);
 
   useEffect(() => {
     loadDigest(date);
@@ -41,54 +52,39 @@ export function DigestView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const visibleItems = useMemo(
+    () => items.filter((it) => CATEGORIES.includes(it.category)),
+    [items],
+  );
+
   // 이 날짜에 실제로 존재하는 카테고리 탭만 노출
   const availableCategories = useMemo(() => {
-    const present = new Set(items.map((it) => it.category));
+    const present = new Set(visibleItems.map((it) => it.category));
     return CATEGORIES.filter((c) => present.has(c));
-  }, [items]);
+  }, [visibleItems]);
 
   const filtered = useMemo(() => {
-    if (category === '전체') return items;
+    if (category === '전체') return visibleItems;
     // 추천: 관심 프로필 키워드 매칭 점수순 상위 50개
     if (category === '추천') {
       if (!profile) return [];
-      return [...items]
+      return [...visibleItems]
         .map((it) => ({ it, ps: personalScore(it, profile) }))
         .sort((a, b) => b.ps - a.ps)
         .slice(0, 50)
         .map(({ it }) => it);
     }
-    return items.filter((it) => it.category === category);
-  }, [items, category, profile]);
-
-  // 게임 "모바일 핫 / 스팀 핫": 키워드 기반으로 해당 플랫폼 뉴스만 추림
-  const MOBILE_HOT_RE =
-    /모바일|mobile|iOS|안드로이드|android|앱스토어|app store|구글\s?플레이|google play|가챠|gacha/i;
-  const STEAM_HOT_RE = /스팀|steam|얼리\s?액세스|early access|넥스트\s?페스트|next fest|데모|demo/i;
+    return visibleItems.filter((it) => it.category === category);
+  }, [visibleItems, category, profile]);
 
   const displayList = useMemo(() => {
-    if (category === '구인') {
-      const jobs =
-        jobSize === '전체'
-          ? filtered
-          : filtered.filter((it) => it.jobCompanySize === (jobSize as CompanySize));
-      return [...jobs].sort((a, b) => {
-        const dateDiff = publishedAtMs(b) - publishedAtMs(a);
-        if (dateDiff !== 0) return dateDiff;
-        const casualDiff = Number(b.jobMobileCasual === true) - Number(a.jobMobileCasual === true);
-        if (casualDiff !== 0) return casualDiff;
-        return b.score - a.score;
-      });
-    }
     if (category !== '게임' || (gameMode !== 'mobileHot' && gameMode !== 'steamHot')) {
       return filtered;
     }
-    const re = gameMode === 'mobileHot' ? MOBILE_HOT_RE : STEAM_HOT_RE;
     return filtered.filter((it) =>
-      re.test(`${it.title} ${it.summary} ${it.titleKo ?? ''} ${it.summaryKo ?? ''}`),
+      gameMode === 'mobileHot' ? isMobileHotGameItem(it) : isSteamHotGameItem(it),
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered, category, gameMode, jobSize]);
+  }, [filtered, category, gameMode]);
 
   const isToday = date === kstToday();
 
@@ -315,31 +311,13 @@ export function DigestView() {
           </div>
         )}
 
-        {category === '구인' && (
-          <div className="flex flex-wrap gap-1.5">
-            {JOB_SIZE_FILTERS.map((value) => (
-              <button
-                key={value}
-                onClick={() => setJobSize(value)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                  jobSize === value
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-white text-slate-600 shadow-sm hover:bg-slate-100'
-                }`}
-              >
-                {value}
-              </button>
-            ))}
-          </div>
-        )}
-
         {category === '게임' && (gameMode === 'mobile' || gameMode === 'steam') ? (
           <GameRankings mode={gameMode} />
         ) : loading ? (
           <p className="py-16 text-center text-slate-400">불러오는 중…</p>
         ) : displayList.length === 0 ? (
           <p className="py-16 text-center text-slate-400">
-            {items.length === 0
+            {visibleItems.length === 0
               ? '이 날짜의 다이제스트가 없습니다'
               : '이 카테고리에 항목이 없습니다'}
           </p>

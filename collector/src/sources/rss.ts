@@ -1,5 +1,6 @@
 import Parser from 'rss-parser';
 import type { RawItem, SourceDef } from '../types.js';
+import { applySourceFilters } from './filters.js';
 
 // media:* 네임스페이스 필드까지 파싱해 썸네일을 추출한다
 const parser: Parser<Record<string, unknown>, Record<string, unknown>> = new Parser({
@@ -37,7 +38,7 @@ export async function fetchRss(source: SourceDef): Promise<RawItem[]> {
   const feed = await parser.parseURL(source.target);
   const limit = source.limit ?? 30;
 
-  return (feed.items ?? []).slice(0, limit).map((item) => ({
+  const items = (feed.items ?? []).map((item) => ({
     title: ((item.title as string) ?? '(제목 없음)').trim(),
     url: (item.link as string) ?? '',
     summary: (item.contentSnippet as string) ?? (item.content as string) ?? '',
@@ -45,4 +46,6 @@ export async function fetchRss(source: SourceDef): Promise<RawItem[]> {
     sourceScore: null,
     imageUrl: extractImage(item),
   }));
+
+  return applySourceFilters(items, source).slice(0, limit);
 }

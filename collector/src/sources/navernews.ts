@@ -1,4 +1,5 @@
 import type { RawItem, SourceDef } from '../types.js';
+import { applySourceFilters } from './filters.js';
 
 // 네이버 검색 Open API (뉴스) — https://developers.naver.com 에서 앱 등록 후
 // NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 환경변수로 주입한다. (무료 일 25,000회)
@@ -30,7 +31,15 @@ function stripTags(text: string): string {
 /** 네이버 뉴스 검색 — 키워드 기준 최신순 */
 export async function fetchNaverNews(source: SourceDef): Promise<RawItem[]> {
   const limit = source.limit ?? 15;
-  const url = `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(source.target)}&display=${limit}&sort=date`;
+  const display = source.includeKeywords?.length || source.excludeKeywords?.length
+    ? Math.min(limit * 3, 100)
+    : limit;
+  const params = new URLSearchParams({
+    query: source.target,
+    display: String(display),
+    sort: source.naverSort ?? 'date',
+  });
+  const url = `https://openapi.naver.com/v1/search/news.json?${params.toString()}`;
   const res = await fetch(url, {
     headers: {
       'X-Naver-Client-Id': process.env.NAVER_CLIENT_ID!,
@@ -40,11 +49,13 @@ export async function fetchNaverNews(source: SourceDef): Promise<RawItem[]> {
   if (!res.ok) throw new Error(`네이버 뉴스 "${source.target}" HTTP ${res.status}`);
   const json = await res.json();
 
-  return ((json.items ?? []) as NaverNewsItem[]).map((it) => ({
+  const items = ((json.items ?? []) as NaverNewsItem[]).map((it) => ({
     title: stripTags(it.title),
     url: it.originallink || it.link,
     summary: stripTags(it.description),
     publishedAt: it.pubDate ? new Date(it.pubDate) : null,
     sourceScore: null,
   }));
+
+  return applySourceFilters(items, source).slice(0, limit);
 }

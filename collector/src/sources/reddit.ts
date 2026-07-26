@@ -1,4 +1,5 @@
 import type { RawItem, SourceDef } from '../types.js';
+import { applySourceFilters } from './filters.js';
 
 // Reddit은 익명 API 접근을 차단하므로 OAuth(client_credentials) 필수.
 // https://www.reddit.com/prefs/apps 에서 "script" 앱 등록 후
@@ -61,7 +62,7 @@ export async function fetchReddit(source: SourceDef): Promise<RawItem[]> {
   if (!res.ok) throw new Error(`Reddit r/${source.target} HTTP ${res.status}`);
   const json = await res.json();
 
-  return (json.data?.children ?? [])
+  const items = (json.data?.children ?? [])
     .filter((post: RedditPost) => !post.data.stickied)
     .map((post: RedditPost) => ({
       title: post.data.title.trim(),
@@ -71,4 +72,6 @@ export async function fetchReddit(source: SourceDef): Promise<RawItem[]> {
       publishedAt: new Date(post.data.created_utc * 1000),
       sourceScore: post.data.ups,
     }));
+
+  return applySourceFilters(items, source);
 }

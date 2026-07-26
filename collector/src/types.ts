@@ -11,7 +11,7 @@ export type Category =
   | '증권'
   | '여행'
   | '맛집'
-  | '구인';
+  | '밈';
 
 /** 수집 소스 타입 */
 export type SourceType = 'rss' | 'hackernews' | 'reddit' | 'navernews' | 'gamejobs';
@@ -30,11 +30,17 @@ export interface SourceDef {
   limit?: number;
   /** false면 수집에서 제외 (기본 true) */
   enabled?: boolean;
+  /** 제목+요약에 하나 이상 포함되어야 하는 키워드 */
+  includeKeywords?: string[];
+  /** 제목+요약에 포함되면 제외할 키워드 */
+  excludeKeywords?: string[];
+  /** 네이버 뉴스 전용 정렬 기준 */
+  naverSort?: 'date' | 'sim';
   /** 요약문 언어 — 번역하기 버튼 노출 여부 판단용 */
   lang: 'ko' | 'en';
-  /** 구인 소스 전용: 기업 규모 필터 */
+  /** 레거시 gamejobs 소스 전용: 기업 규모 필터 */
   companySize?: CompanySize;
-  /** 구인 소스 전용: 모바일/캐주얼 게임사 우선 표시 */
+  /** 레거시 gamejobs 소스 전용: 모바일/캐주얼 게임사 우선 표시 */
   mobileCasual?: boolean;
 }
 

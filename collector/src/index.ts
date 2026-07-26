@@ -59,7 +59,13 @@ async function loadSources(db: FirebaseFirestore.Firestore | null): Promise<Sour
 
 /** 자격증명이 없는 타입의 소스를 제외 */
 function filterByCredentials(sources: SourceDef[]): SourceDef[] {
-  let result = sources.filter((s) => s.enabled !== false);
+  const beforeRemovedCategories = sources.length;
+  let result = sources.filter(
+    (s) => s.enabled !== false && String(s.category) !== '구인' && s.type !== 'gamejobs',
+  );
+  if (beforeRemovedCategories !== result.length) {
+    console.warn(`[collect] 레거시 채용 소스 ${beforeRemovedCategories - result.length}개 건너뜀`);
+  }
 
   if (!hasRedditCredentials()) {
     const before = result.length;
