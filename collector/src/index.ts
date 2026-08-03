@@ -9,7 +9,6 @@ import { normalizeItems } from './pipeline/normalize.js';
 import { dedupeItems } from './pipeline/dedupe.js';
 import { toDigestItems } from './pipeline/score.js';
 import { enrichImages } from './pipeline/enrich.js';
-import { hasGeminiCredentials, translateItems } from './pipeline/translate.js';
 import {
   initFirestore,
   saveDigest,
@@ -94,7 +93,6 @@ async function main() {
   const date = kstDateString(now);
   const dryRun = !!process.env.DRY_RUN;
   const forceCollect = envFlag('FORCE_COLLECT');
-  const skipAiExtras = envFlag('SKIP_AI_EXTRAS');
 
   const db = dryRun ? null : initFirestore();
   if (!dryRun && db && !forceCollect && (await digestExists(db, date))) {
@@ -133,28 +131,13 @@ async function main() {
     throw new Error('수집된 항목이 0건 — 전체 소스 장애 가능성');
   }
 
-  // 기본 다이제스트를 먼저 저장해 AI 부가기능 지연이 열람 가능 상태를 막지 않게 한다.
-  let briefing: unknown = null;
+  // 기본 다이제스트를 먼저 저장한 뒤 이미지 보강 (실패해도 열람 가능)
   let savedBaseline = false;
   if (!dryRun) {
     await saveDigest(db!, date, deduped);
     savedBaseline = true;
     console.log(`[collect] 기본 다이제스트 저장 완료 (${date})`);
-
-    // 이미지 보강 → 영문 항목 배치 번역 → AI 부가기능 (실패해도 기본 다이제스트는 이미 저장됨)
     await enrichImages(deduped);
-    if (skipAiExtras) {
-      console.warn('[collect] SKIP_AI_EXTRAS=1 — 배치 번역·AI 부가기능 건너뜀');
-    } else if (hasGeminiCredentials()) {
-      await translateItems(deduped);
-      await saveDigest(db!, date, deduped);
-      console.log(`[collect] 번역 다이제스트 업데이트 완료 (${date})`);
-      const { generateBriefing, summarizeClusters } = await import('./pipeline/ai-extras.js');
-      await summarizeClusters(deduped);
-      briefing = await generateBriefing(deduped);
-    } else {
-      console.warn('[collect] GEMINI_API_KEY 미설정 — 배치 번역·AI 부가기능 건너뜀');
-    }
   }
 
   // DRY_RUN=1이면 Firestore 저장 없이 수집 결과만 출력 (로컬 검증용)
@@ -166,7 +149,7 @@ async function main() {
     return;
   }
 
-  await saveDigest(db, date, deduped, briefing);
+  await saveDigest(db, date, deduped);
   if (savedBaseline) console.log(`[collect] 보강 다이제스트 업데이트 완료 (${date})`);
 
   // 게임 순위 수집 (실패해도 다이제스트에는 영향 없음)
@@ -175,20 +158,6 @@ async function main() {
     await collectRankings(db, date);
   } catch (err) {
     console.warn(`[rankings] 순위 수집 실패: ${err}`);
-  }
-
-  // 주간 트렌드 리포트 — 일요일마다 지난 7일 다이제스트로 생성 (FORCE_REPORT=1로 강제 가능)
-  const isSunday = new Date(`${date}T00:00:00Z`).getUTCDay() === 0;
-  if ((isSunday || process.env.FORCE_REPORT) && hasGeminiCredentials()) {
-    try {
-      const { generateWeeklyReport } = await import('./pipeline/ai-extras.js');
-      const dates = Array.from({ length: 7 }, (_, i) =>
-        kstDateString(new Date(now.getTime() - (6 - i) * 86400_000)),
-      );
-      await generateWeeklyReport(db, dates);
-    } catch (err) {
-      console.warn(`[report] 주간 리포트 실패: ${err}`);
-    }
   }
 
   const removed = await cleanupOldDigests(db, now);

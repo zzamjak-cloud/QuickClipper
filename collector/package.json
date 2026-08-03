@@ -7,13 +7,10 @@
   "scripts": {
     "collect": "tsx src/index.ts",
     "collect:rankings": "tsx src/run-rankings.ts",
-    "translate:digest": "tsx src/run-translate-digest.ts",
-    "ai:extras": "tsx src/run-ai-extras.ts",
     "seed:sources": "tsx src/seed-sources.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^2.10.0",
     "firebase-admin": "^13.6.0",
     "google-play-scraper": "^10.1.3",
     "rss-parser": "^3.13.0"

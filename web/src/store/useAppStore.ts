@@ -7,7 +7,7 @@ import { fetchDigestBriefing, fetchDigestItems } from '../lib/digest';
 import { addClip, fetchClipIds, fetchClips, removeClip, updateClipMeta } from '../lib/clips';
 import type { AccessConfig } from '../lib/access';
 import { fetchAccessConfig } from '../lib/access';
-import { fetchProfile, generateProfile, recordClick, suggestTags } from '../lib/ai';
+import { fetchProfile, recordClick } from '../lib/ai';
 
 /** 다이제스트 탭: 카테고리 + 가상 탭(전체/추천) */
 export type Tab = Category | '전체' | '추천';
@@ -39,7 +39,7 @@ interface AppState {
   loadDigest: (date: string) => Promise<void>;
   loadClipIds: () => Promise<void>;
   loadClips: () => Promise<void>;
-  /** 프로필 로드 + 오래됐으면 백그라운드 갱신 */
+  /** 기존 관심 프로필 로드 (AI 재생성 없음) */
   ensureProfile: () => Promise<void>;
   trackClick: (item: DigestItem) => void;
   deleteClip: (clipId: string) => Promise<void>;
@@ -48,10 +48,6 @@ interface AppState {
   setAccessConfig: (config: AccessConfig) => void;
   toggleClip: (item: DigestItem) => Promise<void>;
 }
-
-/** 프로필 갱신 주기 (7일) */
-const PROFILE_TTL_MS = 7 * 86400_000;
-let profileRefreshTried = false;
 
 export const useAppStore = create<AppState>((set, get) => ({
   user: null,
@@ -103,20 +99,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!user) return;
     const profile = await fetchProfile(user.uid).catch(() => null);
     if (profile) set({ profile });
-
-    // 프로필이 없거나 7일 이상 지났으면 백그라운드로 재생성 (활동 부족 등 실패는 무시)
-    const stale =
-      !profile || !profile.updatedAt || Date.now() - profile.updatedAt.toMillis() > PROFILE_TTL_MS;
-    if (stale && !profileRefreshTried) {
-      profileRefreshTried = true;
-      try {
-        await generateProfile();
-        const fresh = await fetchProfile(user.uid);
-        if (fresh) set({ profile: fresh });
-      } catch {
-        // 활동 기록 부족 등 — 다음 세션에서 재시도
-      }
-    }
   },
 
   trackClick: (item) => {
@@ -174,12 +156,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       next.add(item.id);
       set({ clipIds: next });
       await addClip(user.uid, item, date);
-      // AI 자동 태그 (백그라운드, 실패 무시)
-      suggestTags(item)
-        .then((tags) => {
-          if (tags.length > 0) return updateClipMeta(user.uid, item.id, { tags });
-        })
-        .catch(() => {});
     }
   },
 }));
