@@ -1,7 +1,9 @@
 {
   "name": "web",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.1",
+  "license": "GPL-3.0-only",
+  "author": "Woody and QuickClipper contributors",
   "type": "module",
   "scripts": {
     "dev": "vite",

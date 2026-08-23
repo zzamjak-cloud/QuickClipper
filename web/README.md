@@ -1,32 +1,11 @@
-# React + TypeScript + Vite
+# QuickClipper Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+QuickClipper 웹 클라이언트입니다.
 
-Currently, two official plugins are available:
+## 라이선스
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+이 프로젝트는 GNU General Public License v3.0 전용(`GPL-3.0-only`)으로 배포됩니다.
 
-## React Compiler
+저작권은 Woody 및 QuickClipper contributors에게 있습니다. 재배포나 파생 작업을 공개할 때는 GPL v3.0 조건에 따라 동일한 라이선스로 소스 코드를 공개해야 하며, 원저작권 고지를 제거하거나 자신이 원저작권자인 것처럼 표시할 수 없습니다.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+자세한 내용은 저장소 최상위의 `LICENSE` 및 `NOTICE.md`를 확인하세요.
