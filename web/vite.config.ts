@@ -10,6 +10,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: false,
       manifest: {
         name: 'QuickClipper AI 데일리',
         short_name: 'AI 데일리',
@@ -27,6 +28,10 @@ export default defineConfig({
       workbox: {
         // Firestore 요청은 SDK 오프라인 캐시가 담당하므로 SW 캐싱 제외
         navigateFallbackDenylist: [/^\/__/],
+        // 새 배포가 대기 없이 즉시 활성화되도록 함
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
       },
     }),
   ],
