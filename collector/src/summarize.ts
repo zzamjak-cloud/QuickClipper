@@ -9,7 +9,7 @@ import {
 } from './report.js';
 import type { CandidatesFile } from './types.js';
 
-// 2단계(summarize): Claude Code 헤드리스(claude -p)로 candidates.json → 한국어 리포트(report.json).
+// 2단계(summarize): Claude Code 헤드리스(claude -p)로 candidates.json → 한국어 리포트 문서(report.json).
 // 인증은 CI에선 CLAUDE_CODE_OAUTH_TOKEN, 로컬에선 claude 로그인 세션을 그대로 쓴다.
 // 실패하면 report.json을 만들지 않고 종료 코드 1 — publish가 원문으로 폴백한다.
 
@@ -80,16 +80,20 @@ async function main() {
     source: c.sourceName,
     publishedAt: c.publishedAt,
     score: c.score,
+    hasImage: !!c.imageUrl,
     alsoReportedBy: c.relatedSources?.map((s) => s.name),
   }));
   const input = `${prompt}\n\n## candidates\n${JSON.stringify(compact)}\n`;
 
   console.log(`[summarize] 후보 ${candidates.length}건 → claude -p (${MODEL})`);
   const report = validateReport(extractReport(await runClaude(input)), candidates);
-  if (!report) throw new Error('리포트 검증 실패 (브리핑 누락 또는 유효 항목 부족)');
+  if (!report) throw new Error('리포트 검증 실패 (헤드라인·리드 누락 또는 유효 섹션 부족)');
 
   await writeFile(REPORT_PATH, JSON.stringify(report, null, 2));
-  console.log(`[summarize] ${REPORT_PATH} 저장 — 항목 ${report.items.length}건`);
+  const bookmarks = report.sections.reduce((n, s) => n + s.bookmarks.length, 0);
+  console.log(
+    `[summarize] ${REPORT_PATH} 저장 — 섹션 ${report.sections.length}개, 북마크 ${bookmarks}건, 짧은 소식 ${report.briefs.length}건`,
+  );
 }
 
 main()

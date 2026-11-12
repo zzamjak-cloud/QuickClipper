@@ -1,6 +1,6 @@
 import { initializeApp, cert, applicationDefault } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
-import { createHash } from 'node:crypto';
+import type { Report } from '../types.js';
 
 /**
  * Admin SDK 초기화.
@@ -13,14 +13,9 @@ export function initFirestore() {
     ? initializeApp({ credential: cert(JSON.parse(saJson)) })
     : initializeApp({ credential: applicationDefault() });
   const db = getFirestore(app);
-  // imageUrl/titleKo 등 선택 필드의 undefined를 자동 제거
+  // imageUrl 등 선택 필드의 undefined를 자동 제거
   db.settings({ ignoreUndefinedProperties: true });
   return db;
-}
-
-/** URL 해시로 결정적 문서 ID 생성 — 재실행 시 같은 항목은 덮어쓰기(멱등) */
-function itemDocId(url: string): string {
-  return createHash('sha1').update(url).digest('hex').slice(0, 20);
 }
 
 /** KST 기준 오늘 날짜 문자열 (YYYY-MM-DD) — 다이제스트 문서 ID */
@@ -41,9 +36,11 @@ export async function digestExists(
   return snap.exists && typeof data?.itemCount === 'number' && data.itemCount > 0;
 }
 
-/** Firestore digests/{date}/items/{id} 문서 */
+/** Firestore digests/{date}/items/{후보 id} 문서 — 리포트가 참조하는 후보 원본 */
 export interface StoredItem {
-  /** 리포트 내 순서 (1부터, 중요도순) */
+  /** 후보 id (c1, c2, …) — 문서 ID이자 리포트의 참조 키 */
+  id: string;
+  /** 후보 순서 (1부터, 점수순) */
   rank: number;
   title: string;
   url: string;
@@ -56,45 +53,34 @@ export interface StoredItem {
   collectedAt: Date;
   imageUrl?: string;
   relatedSources?: { name: string; url: string }[];
-  titleKo?: string;
-  summaryKo?: string;
-  whyItMatters?: string;
-  tags?: string[];
-}
-
-/** digests/{date} 메타 문서의 브리핑 */
-export interface StoredBriefing {
-  headline: string;
-  summary: string;
-  keyPoints: string[];
 }
 
 /**
- * 다이제스트 저장: digests/{date} + items 서브컬렉션.
+ * 다이제스트 저장: digests/{date}.report + items 서브컬렉션.
  * 같은 날짜 재실행(FORCE) 시 이전 항목이 섞이지 않도록 기존 items를 지우고 새로 쓴다.
  */
 export async function saveDigest(
   db: FirebaseFirestore.Firestore,
   date: string,
   items: StoredItem[],
-  briefing: StoredBriefing | null,
+  report: Report | null,
 ): Promise<void> {
   await db.recursiveDelete(db.collection(`digests/${date}/items`));
 
   const batch = db.batch();
-  for (const item of items) {
-    batch.set(db.doc(`digests/${date}/items/${itemDocId(item.url)}`), {
+  for (const { id, ...item } of items) {
+    batch.set(db.doc(`digests/${date}/items/${id}`), {
       ...item,
       publishedAt: item.publishedAt ? Timestamp.fromDate(item.publishedAt) : null,
       collectedAt: Timestamp.fromDate(item.collectedAt),
     });
   }
-  // 메타 문서는 merge 없이 덮어써 이전 스키마 필드를 남기지 않는다
+  // 메타 문서는 merge 없이 덮어써 이전 스키마 필드(briefing 등)를 남기지 않는다
   batch.set(db.doc(`digests/${date}`), {
     date,
     itemCount: items.length,
-    briefing,
-    aiGenerated: briefing !== null,
+    report,
+    aiGenerated: report !== null,
     updatedAt: FieldValue.serverTimestamp(),
   });
   await batch.commit();

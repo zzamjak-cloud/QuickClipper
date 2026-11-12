@@ -1,34 +1,45 @@
 import type { Timestamp } from 'firebase/firestore';
 
-/** digests/{date}/items/{id} 문서 */
+/** digests/{date}/items/{id} 문서 — 수집 후보 원본 (id = 후보 id) */
 export interface DigestItem {
   id: string;
-  /** 리포트 내 순서 (1부터, 중요도순) */
-  rank: number;
+  /** 후보 순서 (1부터, 점수순) — 아주 오래된 스키마엔 없음 */
+  rank?: number;
   title: string;
   url: string;
   summary: string;
-  sourceId: string;
   sourceName: string;
-  lang: 'ko' | 'en';
   score: number;
   publishedAt: Timestamp | null;
-  collectedAt: Timestamp;
   imageUrl?: string;
-  /** 같은 이슈를 보도한 다른 소스들 (교차 보도) */
   relatedSources?: { name: string; url: string }[];
-  /** AI 리포트 필드 — 요약 실패(원문 폴백) 시 없음 */
+  /** 이전 스키마(카드형 리포트)의 한국어 필드 — 짧은 소식 폴백에서만 사용 */
   titleKo?: string;
   summaryKo?: string;
-  whyItMatters?: string;
-  tags?: string[];
 }
 
-/** digests/{date}.briefing */
-export interface Briefing {
+/** digests/{date}.report — 하나의 리포트 문서 (id는 모두 items 문서 id) */
+export interface Report {
   headline: string;
-  summary: string;
-  keyPoints: string[];
+  lede: string;
+  sections: ReportSection[];
+  briefs: { id: string; oneLine: string }[];
+}
+
+export interface ReportSection {
+  title: string;
+  body: string[];
+  heroId: string | null;
+  bookmarks: { id: string; reason: string }[];
+}
+
+/** 링크 표시용 도메인 (www. 제거) */
+export function domainOf(pageUrl: string): string {
+  try {
+    return new URL(pageUrl).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
 }
 
 /** 사이트 파비콘 URL (구글 파비콘 서비스) */

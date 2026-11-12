@@ -6,6 +6,7 @@ import { fetchGeekNews } from './sources/geeknews.js';
 import { normalizeItems } from './pipeline/normalize.js';
 import { dedupeItems } from './pipeline/dedupe.js';
 import { toDigestItems } from './pipeline/score.js';
+import { enrichImages } from './pipeline/enrich.js';
 import { initFirestore, kstDateString, digestExists } from './pipeline/store.js';
 import { CANDIDATES_PATH, OUT_DIR, REPORT_PATH } from './report.js';
 import type { CandidatesFile, DigestItem, RawItem, SourceDef, SourceTier } from './types.js';
@@ -87,6 +88,8 @@ async function main() {
   if (picked.length === 0) {
     throw new Error('후보 항목이 0건 — 전체 소스 장애 가능성');
   }
+  // 요약 전에 이미지를 확보해 Claude가 대표 이미지(heroId)를 고를 수 있게 한다
+  await enrichImages(picked);
 
   const file: CandidatesFile = {
     date,

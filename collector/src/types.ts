@@ -78,20 +78,22 @@ export interface CandidatesFile {
   candidates: Candidate[];
 }
 
-/** out/report.json — Claude가 생성하는 한국어 리포트 */
+/** out/report.json — Claude가 생성하는 한국어 리포트 문서 (id는 모두 후보 id) */
 export interface Report {
-  briefing: {
-    headline: string;
-    summary: string;
-    keyPoints: string[];
-  };
-  items: {
-    id: string;
-    titleKo: string;
-    summaryKo: string;
-    whyItMatters: string;
-    tags: string[];
-    /** 같은 사건을 다룬 다른 후보 id — 이 항목 하나로 합쳐진다 */
-    relatedIds: string[];
-  }[];
+  headline: string;
+  /** 리드 문단 (3~4문장) */
+  lede: string;
+  sections: ReportSection[];
+  /** 섹션에 쓰지 않은 후보 중 한 줄로 소개할 짧은 소식 */
+  briefs: { id: string; oneLine: string }[];
+}
+
+export interface ReportSection {
+  title: string;
+  /** 본문 문단 (2~4개) — 이 섹션 bookmarks 후보만 근거로 작성 */
+  body: string[];
+  /** 대표 이미지로 쓸 후보 id (이미지가 있는 이 섹션 북마크 중 하나) */
+  heroId: string | null;
+  /** 원문으로 이어지는 북마크 카드 */
+  bookmarks: { id: string; reason: string }[];
 }

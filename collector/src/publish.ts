@@ -1,17 +1,11 @@
 import { readFile } from 'node:fs/promises';
-import { enrichImages } from './pipeline/enrich.js';
-import {
-  cleanupOldDigests,
-  initFirestore,
-  saveDigest,
-  type StoredBriefing,
-  type StoredItem,
-} from './pipeline/store.js';
-import { CANDIDATES_PATH, MAX_REPORT_ITEMS, REPORT_PATH, validateReport } from './report.js';
+import { cleanupOldDigests, initFirestore, saveDigest, type StoredItem } from './pipeline/store.js';
+import { CANDIDATES_PATH, REPORT_PATH, validateReport } from './report.js';
 import type { Candidate, CandidatesFile, Report } from './types.js';
 
-// 3단계(publish): report.json + candidates.json 병합 → Firestore digests/{date} 저장.
-// report.json이 없거나 깨졌으면 상위 후보를 원문 그대로 저장한다 (폴백).
+// 3단계(publish): report.json + candidates.json → Firestore digests/{date} 저장.
+// 후보 전체를 items로 저장하고 리포트는 후보 id로 참조한다.
+// report.json이 없거나 깨졌으면 report 없이 저장 — 웹이 후보를 짧은 소식 목록으로 보여준다 (폴백).
 
 async function loadReport(candidates: Candidate[]): Promise<Report | null> {
   try {
@@ -26,6 +20,7 @@ async function loadReport(candidates: Candidate[]): Promise<Report | null> {
 
 function toStored(c: Candidate, rank: number, collectedAt: Date): StoredItem {
   return {
+    id: c.id,
     rank,
     title: c.title,
     url: c.url,
@@ -41,46 +36,18 @@ function toStored(c: Candidate, rank: number, collectedAt: Date): StoredItem {
   };
 }
 
-/** 모델이 합친 후보들을 대표 항목의 교차 보도 링크로 묶는다 (URL 중복 제거, 최대 6개) */
-function mergeRelated(main: Candidate, merged: Candidate[]): Candidate['relatedSources'] {
-  const links = [
-    ...(main.relatedSources ?? []),
-    ...merged.flatMap((c) => [{ name: c.sourceName, url: c.url }, ...(c.relatedSources ?? [])]),
-  ];
-  const unique = links.filter(
-    (l, i) => l.url !== main.url && links.findIndex((x) => x.url === l.url) === i,
-  );
-  return unique.length > 0 ? unique.slice(0, 6) : undefined;
-}
-
 async function main() {
   const file = JSON.parse(await readFile(CANDIDATES_PATH, 'utf8')) as CandidatesFile;
   const collectedAt = new Date(file.collectedAt);
-  const byId = new Map(file.candidates.map((c) => [c.id, c]));
   const report = await loadReport(file.candidates);
+  const items = file.candidates.map((c, i) => toStored(c, i + 1, collectedAt));
 
-  let items: StoredItem[];
-  let briefing: StoredBriefing | null = null;
-  if (report) {
-    briefing = report.briefing;
-    items = report.items.map((r, i) => ({
-      ...toStored(byId.get(r.id)!, i + 1, collectedAt),
-      relatedSources: mergeRelated(byId.get(r.id)!, r.relatedIds.map((rid) => byId.get(rid)!)),
-      titleKo: r.titleKo,
-      summaryKo: r.summaryKo,
-      whyItMatters: r.whyItMatters,
-      tags: r.tags,
-    }));
-  } else {
-    items = file.candidates.slice(0, MAX_REPORT_ITEMS).map((c, i) => toStored(c, i + 1, collectedAt));
-  }
-
-  await enrichImages(items);
   const db = initFirestore();
-  await saveDigest(db, file.date, items, briefing);
-  console.log(
-    `[publish] ${file.date} 저장 완료 — 항목 ${items.length}건 (${report ? 'AI 리포트' : '원문 폴백'})`,
-  );
+  await saveDigest(db, file.date, items, report);
+  const summary = report
+    ? `리포트 섹션 ${report.sections.length}개·북마크 ${report.sections.reduce((n, s) => n + s.bookmarks.length, 0)}건·짧은 소식 ${report.briefs.length}건`
+    : '원문 폴백';
+  console.log(`[publish] ${file.date} 저장 완료 — 후보 ${items.length}건, ${summary}`);
 
   const removed = await cleanupOldDigests(db, collectedAt);
   console.log(`[publish] 만료 다이제스트 ${removed}건 정리`);
