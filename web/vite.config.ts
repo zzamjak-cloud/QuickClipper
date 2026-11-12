@@ -11,9 +11,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'QuickClipper',
-        short_name: 'QuickClipper',
-        description: '매일 아침, 내가 고른 소스의 소식만 한 곳에서',
+        name: 'QuickClipper AI 데일리',
+        short_name: 'AI 데일리',
+        description: '매일 아침 AI 소식을 한국어 리포트로',
         lang: 'ko',
         theme_color: '#0f172a',
         background_color: '#f8fafc',

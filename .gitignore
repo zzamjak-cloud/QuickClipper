@@ -5,7 +5,7 @@ node_modules/
 dist/
 build/
 target/
-functions/lib/
+collector/out/
 
 # 환경변수 / 비밀키
 .env
@@ -13,6 +13,7 @@ functions/lib/
 !.env.example
 *.key
 serviceAccount*.json
+*-firebase-adminsdk-*.json
 
 # Firebase
 .firebase/
@@ -32,4 +33,3 @@ Thumbs.db
 .omc/
 .serena/
 .playwright-mcp/
-quick-clipper-firebase-adminsdk-fbsvc-0d901f881d.json

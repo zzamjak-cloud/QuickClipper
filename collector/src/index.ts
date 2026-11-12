@@ -1,86 +1,28 @@
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { SOURCES } from '../sources.config.js';
 import { fetchRss } from './sources/rss.js';
 import { fetchHackerNews } from './sources/hackernews.js';
-import { fetchReddit, hasRedditCredentials } from './sources/reddit.js';
-import { fetchNaverNews, hasNaverCredentials } from './sources/navernews.js';
 import { fetchGeekNews } from './sources/geeknews.js';
-import { fetchGameJobs } from './sources/gamejobs.js';
 import { normalizeItems } from './pipeline/normalize.js';
 import { dedupeItems } from './pipeline/dedupe.js';
 import { toDigestItems } from './pipeline/score.js';
-import { enrichImages } from './pipeline/enrich.js';
-import {
-  initFirestore,
-  saveDigest,
-  cleanupOldDigests,
-  kstDateString,
-  digestExists,
-} from './pipeline/store.js';
-import type { DigestItem, RawItem, SourceDef } from './types.js';
+import { initFirestore, kstDateString, digestExists } from './pipeline/store.js';
+import { CANDIDATES_PATH, OUT_DIR, REPORT_PATH } from './report.js';
+import type { CandidatesFile, DigestItem, RawItem, SourceDef, SourceTier } from './types.js';
 
-const FETCHERS: Record<SourceDef['type'], (s: SourceDef) => Promise<RawItem[]>> = {
-  rss: fetchRss,
-  hackernews: fetchHackerNews,
-  reddit: fetchReddit,
-  navernews: fetchNaverNews,
-  gamejobs: fetchGameJobs,
-};
+// 1단계(collect): 수집 → 정규화 → 중복 제거 → 점수 → 상위 후보를 out/candidates.json으로 출력.
+// Firestore에는 쓰지 않는다 (저장은 publish 단계).
+
+const CANDIDATE_COUNT = 30;
+/** 한 소스가 후보를 독점하지 않도록 등급별 소스당 상한 */
+const MAX_PER_SOURCE: Record<SourceTier, number> = { official: 5, media: 8, community: 4 };
+/** 신선도 윈도: 공식 블로그는 게시 빈도가 낮아 72시간, 나머지는 하루 이틀 내 소식만 */
+const MAX_AGE_HOURS: Record<SourceTier, number> = { official: 72, media: 48, community: 48 };
 
 /** 소스별 fetcher 선택 — GeekNews는 추천수 파싱을 위해 전용 fetcher 사용 */
 function fetcherFor(source: SourceDef): (s: SourceDef) => Promise<RawItem[]> {
   if (source.id === 'geeknews') return fetchGeekNews;
-  return FETCHERS[source.type];
-}
-
-/**
- * 수집 소스 로드: sources.config.ts 기본 소스에 Firestore sources 컬렉션을 병합한다.
- * 같은 id는 Firestore 값을 우선해 관리자 UI 편집분을 보존한다.
- */
-async function loadSources(db: FirebaseFirestore.Firestore | null): Promise<SourceDef[]> {
-  const merged = new Map(SOURCES.map((source) => [source.id, source]));
-  if (db) {
-    try {
-      const snap = await db.collection('sources').get();
-      if (!snap.empty) {
-        for (const doc of snap.docs) {
-          const data = doc.data() as SourceDef;
-          merged.set(data.id ?? doc.id, { ...data, id: data.id ?? doc.id });
-        }
-        console.log(`[collect] 기본+Firestore 소스 ${merged.size}개 로드 (Firestore ${snap.size}개)`);
-        return [...merged.values()];
-      }
-    } catch (err) {
-      console.warn(`[collect] Firestore 소스 로드 실패 — 설정 파일 폴백: ${err}`);
-    }
-  }
-  return [...merged.values()];
-}
-
-/** 자격증명이 없는 타입의 소스를 제외 */
-function filterByCredentials(sources: SourceDef[]): SourceDef[] {
-  const beforeRemovedCategories = sources.length;
-  let result = sources.filter(
-    (s) => s.enabled !== false && String(s.category) !== '구인' && s.type !== 'gamejobs',
-  );
-  if (beforeRemovedCategories !== result.length) {
-    console.warn(`[collect] 레거시 채용 소스 ${beforeRemovedCategories - result.length}개 건너뜀`);
-  }
-
-  if (!hasRedditCredentials()) {
-    const before = result.length;
-    result = result.filter((s) => s.type !== 'reddit');
-    if (before !== result.length) {
-      console.warn(`[collect] REDDIT_CLIENT_ID/SECRET 미설정 — Reddit 소스 ${before - result.length}개 건너뜀`);
-    }
-  }
-  if (!hasNaverCredentials()) {
-    const before = result.length;
-    result = result.filter((s) => s.type !== 'navernews');
-    if (before !== result.length) {
-      console.warn(`[collect] NAVER_CLIENT_ID/SECRET 미설정 — 네이버 소스 ${before - result.length}개 건너뜀`);
-    }
-  }
-  return result;
+  return source.type === 'hackernews' ? fetchHackerNews : fetchRss;
 }
 
 function envFlag(name: string): boolean {
@@ -88,27 +30,42 @@ function envFlag(name: string): boolean {
   return value === '1' || value === 'true' || value === 'yes';
 }
 
+function pickCandidates(items: DigestItem[], now: Date): DigestItem[] {
+  const perSource = new Map<string, number>();
+  const picked: DigestItem[] = [];
+  for (const item of [...items].sort((a, b) => b.score - a.score)) {
+    const ageHours = item.publishedAt ? (now.getTime() - item.publishedAt.getTime()) / 3600_000 : 0;
+    if (ageHours > MAX_AGE_HOURS[item.sourceTier]) continue;
+    const count = perSource.get(item.sourceId) ?? 0;
+    if (count >= MAX_PER_SOURCE[item.sourceTier]) continue;
+    perSource.set(item.sourceId, count + 1);
+    picked.push(item);
+    if (picked.length === CANDIDATE_COUNT) break;
+  }
+  return picked;
+}
+
 async function main() {
   const now = new Date();
   const date = kstDateString(now);
-  const dryRun = !!process.env.DRY_RUN;
-  const forceCollect = envFlag('FORCE_COLLECT');
+  // 이전 실행의 산출물이 다음 단계로 새어 들어가지 않게 먼저 비운다
+  await rm(CANDIDATES_PATH, { force: true });
+  await rm(REPORT_PATH, { force: true });
 
-  const db = dryRun ? null : initFirestore();
-  if (!dryRun && db && !forceCollect && (await digestExists(db, date))) {
-    console.log(`[collect] ${date} 다이제스트가 이미 있어 수집 건너뜀 (FORCE_COLLECT=1로 강제 실행)`);
-    return;
+  // 백업 크론 재실행 시 이미 발행된 날짜는 건너뜀 (DRY_RUN은 Firestore 조회 없이 수집만)
+  if (!process.env.DRY_RUN && !envFlag('FORCE_COLLECT')) {
+    if (await digestExists(initFirestore(), date)) {
+      console.log(`[collect] ${date} 다이제스트가 이미 있어 건너뜀 (FORCE_COLLECT=1로 강제 실행)`);
+      return;
+    }
   }
 
-  const sources = filterByCredentials(await loadSources(db));
+  const sources = SOURCES.filter((s) => s.enabled !== false);
   console.log(`[collect] ${date} 수집 시작 — 소스 ${sources.length}개`);
 
   // 소스별 수집: 하나가 실패해도 나머지는 계속 진행
   const results = await Promise.allSettled(
-    sources.map(async (source) => {
-      const raws = await fetcherFor(source)(source);
-      return toDigestItems(normalizeItems(raws), source, now);
-    }),
+    sources.map(async (source) => toDigestItems(normalizeItems(await fetcherFor(source)(source)), source, now)),
   );
 
   const items: DigestItem[] = [];
@@ -125,45 +82,34 @@ async function main() {
   });
 
   const deduped = dedupeItems(items);
-  console.log(`[collect] 수집 ${items.length}건 → 중복 제거 후 ${deduped.length}건`);
-
-  if (deduped.length === 0) {
-    throw new Error('수집된 항목이 0건 — 전체 소스 장애 가능성');
+  const picked = pickCandidates(deduped, now);
+  console.log(`[collect] 수집 ${items.length}건 → 중복 제거 ${deduped.length}건 → 후보 ${picked.length}건`);
+  if (picked.length === 0) {
+    throw new Error('후보 항목이 0건 — 전체 소스 장애 가능성');
   }
 
-  // 기본 다이제스트를 먼저 저장한 뒤 이미지 보강 (실패해도 열람 가능)
-  let savedBaseline = false;
-  if (!dryRun) {
-    await saveDigest(db!, date, deduped);
-    savedBaseline = true;
-    console.log(`[collect] 기본 다이제스트 저장 완료 (${date})`);
-    await enrichImages(deduped);
-  }
+  const file: CandidatesFile = {
+    date,
+    collectedAt: now.toISOString(),
+    candidates: picked.map((it, i) => ({
+      id: `c${i + 1}`,
+      title: it.title,
+      url: it.url,
+      summary: it.summary,
+      sourceId: it.sourceId,
+      sourceName: it.sourceName,
+      lang: it.lang,
+      score: it.score,
+      publishedAt: it.publishedAt?.toISOString() ?? null,
+      imageUrl: it.imageUrl,
+      relatedSources: it.relatedSources,
+    })),
+  };
+  await mkdir(OUT_DIR, { recursive: true });
+  await writeFile(CANDIDATES_PATH, JSON.stringify(file, null, 2));
+  console.log(`[collect] ${CANDIDATES_PATH} 저장`);
 
-  // DRY_RUN=1이면 Firestore 저장 없이 수집 결과만 출력 (로컬 검증용)
-  if (dryRun || !db) {
-    const byCategory = new Map<string, number>();
-    for (const it of deduped) byCategory.set(it.category, (byCategory.get(it.category) ?? 0) + 1);
-    console.log('[dry-run] 카테고리별:', Object.fromEntries(byCategory));
-    console.log('[dry-run] 샘플:', deduped.slice(0, 3).map((it) => `${it.title} (${it.score})`));
-    return;
-  }
-
-  await saveDigest(db, date, deduped);
-  if (savedBaseline) console.log(`[collect] 보강 다이제스트 업데이트 완료 (${date})`);
-
-  // 게임 순위 수집 (실패해도 다이제스트에는 영향 없음)
-  try {
-    const { collectRankings } = await import('./rankings.js');
-    await collectRankings(db, date);
-  } catch (err) {
-    console.warn(`[rankings] 순위 수집 실패: ${err}`);
-  }
-
-  const removed = await cleanupOldDigests(db, now);
-  console.log(`[collect] 저장 완료 (${date}), 만료 다이제스트 ${removed}건 정리`);
-
-  // 절반 이상 실패하면 워크플로우를 실패 처리해 Actions 알림을 받는다
+  // 절반 이상 실패하면 워크플로를 실패 처리해 Actions 알림을 받는다
   if (failures.length >= sources.length / 2) {
     throw new Error(`소스 절반 이상 실패: ${failures.join(', ')}`);
   }

@@ -31,7 +31,6 @@ jobs:
         env:
           # Firebase 웹 SDK 설정은 공개 값 (보안은 Firestore 규칙이 담당)
           VITE_FIREBASE_API_KEY: AIzaSyDbyLAPYkGuiOGNxJOBE4cTgqxaeX2fn5o
-          VITE_FIREBASE_AUTH_DOMAIN: quick-clipper.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID: quick-clipper
           VITE_FIREBASE_STORAGE_BUCKET: quick-clipper.firebasestorage.app
           VITE_FIREBASE_MESSAGING_SENDER_ID: "18667269345"

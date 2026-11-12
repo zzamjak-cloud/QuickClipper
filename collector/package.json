@@ -5,16 +5,15 @@
   "license": "GPL-3.0-only",
   "author": "Woody and QuickClipper contributors",
   "type": "module",
-  "description": "QuickClipper 일일 수집 파이프라인 (GitHub Actions cron 실행)",
+  "description": "QuickClipper AI 데일리 리포트 파이프라인 (GitHub Actions cron 실행)",
   "scripts": {
     "collect": "tsx src/index.ts",
-    "collect:rankings": "tsx src/run-rankings.ts",
-    "seed:sources": "tsx src/seed-sources.ts",
+    "summarize": "tsx src/summarize.ts",
+    "publish": "tsx src/publish.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "firebase-admin": "^13.6.0",
-    "google-play-scraper": "^10.1.3",
     "rss-parser": "^3.13.0"
   },
   "devDependencies": {

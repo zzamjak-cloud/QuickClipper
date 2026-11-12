@@ -3,10 +3,5 @@
   "version": "0.1.1",
   "private": true,
   "license": "GPL-3.0-only",
-  "author": "Woody and QuickClipper contributors",
-  "dependencies": {
-    "@mozilla/readability": "^0.6.0",
-    "google-auth-library": "^10.9.0",
-    "linkedom": "^0.18.12"
-  }
+  "author": "Woody and QuickClipper contributors"
 }

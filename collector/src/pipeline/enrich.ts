@@ -1,5 +1,3 @@
-import type { DigestItem } from '../types.js';
-
 // 썸네일이 없는 항목의 기사 페이지에서 og:image를 추출해 보강한다.
 // 실패해도 무시 (이미지는 부가 정보) — 타임아웃 4초, 동시 8개.
 
@@ -42,7 +40,7 @@ async function fetchOgImage(pageUrl: string): Promise<string | undefined> {
 }
 
 /** 이미지 없는 항목에 og:image 보강 (원본 배열을 직접 수정) */
-export async function enrichImages(items: DigestItem[]): Promise<void> {
+export async function enrichImages(items: { url: string; imageUrl?: string }[]): Promise<void> {
   const targets = items.filter((it) => !it.imageUrl);
   let enriched = 0;
 

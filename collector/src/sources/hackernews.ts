@@ -1,6 +1,9 @@
 import type { RawItem, SourceDef } from '../types.js';
+import { applySourceFilters } from './filters.js';
 
 const API = 'https://hacker-news.firebaseio.com/v0';
+// 키워드 필터가 있으면 걸러질 몫을 감안해 상위 스토리를 넓게 훑는다
+const FILTERED_SCAN_SIZE = 120;
 
 interface HnItem {
   title?: string;
@@ -15,7 +18,8 @@ export async function fetchHackerNews(source: SourceDef): Promise<RawItem[]> {
   const limit = source.limit ?? 20;
   const idsRes = await fetch(`${API}/topstories.json`);
   if (!idsRes.ok) throw new Error(`HN topstories HTTP ${idsRes.status}`);
-  const ids: number[] = (await idsRes.json()).slice(0, limit);
+  const scanSize = source.includeKeywords?.length ? FILTERED_SCAN_SIZE : limit;
+  const ids: number[] = (await idsRes.json()).slice(0, scanSize);
 
   const items = await Promise.all(
     ids.map(async (id): Promise<HnItem | null> => {
@@ -24,7 +28,7 @@ export async function fetchHackerNews(source: SourceDef): Promise<RawItem[]> {
     }),
   );
 
-  return items
+  const raws = items
     .filter((it): it is HnItem => it !== null && !!it.title)
     .map((it) => ({
       title: it.title!.trim(),
@@ -34,4 +38,5 @@ export async function fetchHackerNews(source: SourceDef): Promise<RawItem[]> {
       publishedAt: it.time ? new Date(it.time * 1000) : null,
       sourceScore: it.score ?? null,
     }));
+  return applySourceFilters(raws, source).slice(0, limit);
 }

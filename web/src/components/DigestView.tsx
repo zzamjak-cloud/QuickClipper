@@ -1,196 +1,49 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bookmark, ChevronLeft, ChevronRight, FileText, RefreshCw, Settings } from 'lucide-react';
-import { CATEGORIES, kstToday, personalScore, shiftDate } from '../lib/types';
-import type { DigestItem } from '../lib/types';
-import type { Tab } from '../store/useAppStore';
+import { useEffect, useMemo } from 'react';
+import { ChevronLeft, ChevronRight, RefreshCw, Sparkles, X } from 'lucide-react';
+import { formatDateLabel, kstToday, shiftDate } from '../lib/types';
 import { useAppStore } from '../store/useAppStore';
-import { ItemCard } from './ItemCard';
-import { SettingsModal } from './SettingsModal';
-import { GameRankings } from './GameRankings';
 import { BriefingCard } from './BriefingCard';
+import { ItemCard } from './ItemCard';
 
-const PAGE_SIZE = 20;
-const MOBILE_HOT_RE =
-  /모바일\s?게임|모바일|mobile|iOS|안드로이드|android|앱\s?스토어|app store|구글\s?플레이|google play|원스토어|앱마켓|가챠|gacha/i;
-const STEAM_HOT_RE =
-  /스팀|steam|steamdb|스팀덱|steam deck|얼리\s?액세스|early access|넥스트\s?페스트|next fest|스팀\s?페이지|위시리스트|찜하기|데모|demo/i;
-
-function gameSignalText(item: DigestItem): string {
-  return `${item.title} ${item.summary} ${item.titleKo ?? ''} ${item.summaryKo ?? ''} ${item.sourceName}`;
-}
-
-function isMobileHotGameItem(item: DigestItem): boolean {
-  const text = gameSignalText(item);
-  return MOBILE_HOT_RE.test(text) && !STEAM_HOT_RE.test(text);
-}
-
-function isSteamHotGameItem(item: DigestItem): boolean {
-  const text = gameSignalText(item);
-  return STEAM_HOT_RE.test(text) && !MOBILE_HOT_RE.test(text);
-}
-
+/** 단일 화면: 날짜 선택 + 브리핑 + 뉴스 카드 목록 (태그 필터) */
 export function DigestView() {
-  const { date, category, items, loading, briefing, profile, setCategory, setView, loadDigest, loadClipIds, checkAdmin, ensureProfile } =
-    useAppStore();
-  const [showSettings, setShowSettings] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [gameMode, setGameMode] = useState<
-    'news' | 'mobileHot' | 'steamHot' | 'mobile' | 'steam'
-  >('news');
-
-  // 탭·날짜·게임 하위 탭이 바뀌면 표시 개수 초기화
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [category, date, gameMode]);
+  const { date, items, briefing, loading, error, tag, setTag, loadDigest } = useAppStore();
 
   useEffect(() => {
     loadDigest(date);
-    loadClipIds();
-    checkAdmin();
-    ensureProfile();
-    // 마운트 시 1회 (date 변경은 버튼 핸들러에서 loadDigest 직접 호출)
+    // 마운트 시 1회 (날짜 변경은 핸들러에서 loadDigest 직접 호출)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const visibleItems = useMemo(
-    () => items.filter((it) => CATEGORIES.includes(it.category)),
-    [items],
+  // 많이 쓰인 태그순으로 필터 칩 노출
+  const tags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const it of items) for (const t of it.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  }, [items]);
+
+  const visible = useMemo(
+    () => (tag ? items.filter((it) => it.tags?.includes(tag)) : items),
+    [items, tag],
   );
-
-  // 이 날짜에 실제로 존재하는 카테고리 탭만 노출
-  const availableCategories = useMemo(() => {
-    const present = new Set(visibleItems.map((it) => it.category));
-    return CATEGORIES.filter((c) => present.has(c));
-  }, [visibleItems]);
-
-  const filtered = useMemo(() => {
-    if (category === '전체') return visibleItems;
-    // 추천: 관심 프로필 키워드 매칭 점수순 상위 50개
-    if (category === '추천') {
-      if (!profile) return [];
-      return [...visibleItems]
-        .map((it) => ({ it, ps: personalScore(it, profile) }))
-        .sort((a, b) => b.ps - a.ps)
-        .slice(0, 50)
-        .map(({ it }) => it);
-    }
-    return visibleItems.filter((it) => it.category === category);
-  }, [visibleItems, category, profile]);
-
-  const displayList = useMemo(() => {
-    if (category !== '게임' || (gameMode !== 'mobileHot' && gameMode !== 'steamHot')) {
-      return filtered;
-    }
-    return filtered.filter((it) =>
-      gameMode === 'mobileHot' ? isMobileHotGameItem(it) : isSteamHotGameItem(it),
-    );
-  }, [filtered, category, gameMode]);
 
   const isToday = date === kstToday();
 
-  // ── 좌우 스와이프/가로휠로 탭 이동 ──
-  const tabs = useMemo<Tab[]>(
-    () => (profile ? ['추천', '전체', ...availableCategories] : ['전체', ...availableCategories]),
-    [availableCategories, profile],
-  );
-  const tabsRef = useRef(tabs);
-  const categoryRef = useRef(category);
-  tabsRef.current = tabs;
-  categoryRef.current = category;
-  const navRef = useRef<HTMLElement>(null);
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
-  // fixed 헤더의 실제 높이만큼 본문 상단 여백 확보
-  const headerRef = useRef<HTMLElement>(null);
-  const [headerH, setHeaderH] = useState(104);
-
-  useEffect(() => {
-    const el = headerRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(() => setHeaderH(el.offsetHeight));
-    observer.observe(el);
-    setHeaderH(el.offsetHeight);
-    return () => observer.disconnect();
-  }, []);
-  /** 탭 전환 애니메이션 방향 ('right' = 새 리스트가 오른쪽에서 들어옴) */
-  const [slideDir, setSlideDir] = useState<'right' | 'left' | null>(null);
-
-  function changeCategory(next: (typeof tabs)[number]) {
-    const list = tabsRef.current;
-    const diff = list.indexOf(next) - list.indexOf(categoryRef.current as (typeof list)[number]);
-    if (diff === 0) return;
-    setSlideDir(diff > 0 ? 'right' : 'left');
-    setCategory(next);
-  }
-
-  function switchTab(dir: 1 | -1) {
-    const list = tabsRef.current;
-    const next = list[list.indexOf(categoryRef.current as (typeof list)[number]) + dir];
-    if (next) changeCategory(next);
-  }
-
-  // PC: Shift+휠 / 터치패드 두 손가락 가로 스와이프
-  useEffect(() => {
-    let acc = 0;
-    let cooldownUntil = 0;
-    const onWheel = (e: WheelEvent) => {
-      // 탭 바 자체의 가로 스크롤은 그대로 두기
-      if ((e.target as HTMLElement).closest('[data-tabnav]')) return;
-      const dx = e.deltaX !== 0 ? e.deltaX : e.shiftKey ? e.deltaY : 0;
-      if (dx === 0 || Math.abs(dx) < Math.abs(e.deltaY) * 0.8) return;
-      const now = performance.now();
-      if (now < cooldownUntil) return;
-      acc += dx;
-      if (Math.abs(acc) > 100) {
-        switchTab(acc > 0 ? 1 : -1);
-        acc = 0;
-        cooldownUntil = now + 600; // 관성 스크롤로 연속 전환되는 것 방지
-      }
-    };
-    window.addEventListener('wheel', onWheel, { passive: true });
-    return () => window.removeEventListener('wheel', onWheel);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 활성 탭이 바뀌면 탭 바에서 보이도록 스크롤
-  useEffect(() => {
-    navRef.current
-      ?.querySelector('[data-active="true"]')
-      ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
-  }, [category]);
-
   return (
-    <div
-      // touch-pan-y: 가로 팬 제스처를 브라우저가 처리하지 않게 해 스와이프 시 화면 출렁임 방지
-      className="min-h-dvh touch-pan-y overscroll-x-none bg-slate-50"
-      // 모바일: 좌우 스와이프로 탭 이동 (세로 스크롤과 구분되게 가로 우세 + 60px 이상일 때만)
-      onTouchStart={(e) => {
-        if ((e.target as HTMLElement).closest('[data-tabnav]')) return;
-        const t = e.touches[0];
-        touchStart.current = { x: t.clientX, y: t.clientY };
-      }}
-      onTouchEnd={(e) => {
-        const start = touchStart.current;
-        touchStart.current = null;
-        if (!start) return;
-        const t = e.changedTouches[0];
-        const dx = t.clientX - start.x;
-        const dy = t.clientY - start.y;
-        if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy)) {
-          switchTab(dx < 0 ? 1 : -1);
-        }
-      }}
-    >
-      <header
-        ref={headerRef}
-        className="fixed inset-x-0 top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur"
-      >
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
-          <h1 className="text-lg font-bold text-slate-900">QuickClipper</h1>
-          <div className="flex items-center gap-1 text-sm text-slate-600">
+    <div className="min-h-dvh bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/85 backdrop-blur dark:border-slate-800 dark:bg-slate-950/85">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 px-4 py-3">
+          <h1 className="flex items-center gap-1.5 text-base font-bold sm:text-lg">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-white dark:bg-indigo-500">
+              <Sparkles className="h-4 w-4" aria-hidden />
+            </span>
+            AI 데일리
+          </h1>
+          <div className="flex items-center gap-0.5 text-sm text-slate-600 dark:text-slate-300">
             <button
               onClick={() => loadDigest(shiftDate(date, -1))}
               aria-label="이전 날짜"
-              className="rounded-lg p-1.5 hover:bg-slate-100"
+              className="rounded-lg p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -200,149 +53,90 @@ export function DigestView() {
               max={kstToday()}
               onChange={(e) => e.target.value && loadDigest(e.target.value)}
               aria-label="날짜 선택"
-              className="cursor-pointer rounded-lg bg-transparent px-1 py-0.5 font-medium tabular-nums outline-none hover:bg-slate-100"
+              className="cursor-pointer rounded-lg bg-transparent px-1 py-0.5 font-medium tabular-nums outline-none hover:bg-slate-100 dark:scheme-dark dark:hover:bg-slate-800"
             />
             <button
               onClick={() => loadDigest(shiftDate(date, 1))}
               disabled={isToday}
               aria-label="다음 날짜"
-              className="rounded-lg p-1.5 hover:bg-slate-100 disabled:opacity-30"
+              className="rounded-lg p-1.5 hover:bg-slate-100 disabled:opacity-30 dark:hover:bg-slate-800"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
-          </div>
-          <div className="flex items-center gap-0.5">
             <button
-              onClick={() => setView('reports')}
-              aria-label="주간 리포트"
-              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              onClick={() => loadDigest(date)}
+              disabled={loading}
+              aria-label="새로고침"
+              className="ml-1 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-slate-200"
             >
-              <FileText className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setView('clips')}
-              aria-label="보관함"
-              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            >
-              <Bookmark className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setShowSettings(true)}
-              aria-label="설정"
-              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            >
-              <Settings className="h-4 w-4" />
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
-        </div>
-
-        {/* 카테고리 탭 + 새로고침 */}
-        <div className="mx-auto flex max-w-2xl items-center gap-1 px-4 pb-2">
-          <nav ref={navRef} data-tabnav className="min-w-0 flex-1 overflow-x-auto">
-            <div className="flex gap-1.5 whitespace-nowrap">
-              {tabs.map((cat) => (
-                <button
-                  key={cat}
-                  data-active={category === cat}
-                  onClick={() => changeCategory(cat)}
-                  className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-                    category === cat
-                      ? 'bg-slate-900 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </nav>
-          <button
-            onClick={() => {
-              loadDigest(date);
-              loadClipIds();
-            }}
-            disabled={loading}
-            aria-label="새로고침"
-            className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
         </div>
       </header>
 
-      {/* overflow-hidden 마스크 안에서 새 리스트가 방향에 맞춰 슬라이드 인 */}
-      <main
-        className="mx-auto max-w-2xl overflow-x-hidden px-4 pb-4"
-        style={{ paddingTop: headerH + 16 }}
-      >
-        <div
-          key={category}
-          className={`flex flex-col gap-3 ${
-            slideDir === 'right' ? 'tab-enter-right' : slideDir === 'left' ? 'tab-enter-left' : ''
-          }`}
-        >
-        {/* 오늘의 AI 브리핑 (전체 탭) */}
-        {category === '전체' && briefing && <BriefingCard briefing={briefing} />}
+      <main className="mx-auto flex max-w-3xl flex-col gap-4 px-4 pb-12 pt-5">
+        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+          {formatDateLabel(date)} AI 리포트
+        </p>
 
-        {/* 게임 탭 전용 하위 메뉴 */}
-        {category === '게임' && (
-          <div className="flex flex-wrap gap-1.5">
-            {(
-              [
-                ['news', '뉴스'],
-                ['mobileHot', '모바일 핫'],
-                ['steamHot', '스팀 핫'],
-                ['mobile', '모바일 순위'],
-                ['steam', '스팀 순위'],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                onClick={() => setGameMode(value)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                  gameMode === value
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-white text-slate-600 shadow-sm hover:bg-slate-100'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {category === '게임' && (gameMode === 'mobile' || gameMode === 'steam') ? (
-          <GameRankings mode={gameMode} />
-        ) : loading ? (
+        {loading && items.length === 0 ? (
           <p className="py-16 text-center text-slate-400">불러오는 중…</p>
-        ) : displayList.length === 0 ? (
+        ) : error ? (
+          <p className="py-16 text-center text-slate-400">리포트를 불러오지 못했습니다 ({error})</p>
+        ) : items.length === 0 ? (
           <p className="py-16 text-center text-slate-400">
-            {visibleItems.length === 0
-              ? '이 날짜의 다이제스트가 없습니다'
-              : '이 카테고리에 항목이 없습니다'}
+            {isToday ? '오늘 리포트가 아직 발행되지 않았습니다' : '이 날짜의 리포트가 없습니다'}
           </p>
         ) : (
           <>
-            {/* "전체" 탭은 전부 표시, 개별 카테고리 탭은 20건씩 + 더보기 */}
-            {(category === '전체' ? displayList : displayList.slice(0, visibleCount)).map(
-              (item) => (
-                <ItemCard key={item.id} item={item} />
-              ),
+            {briefing ? (
+              <BriefingCard briefing={briefing} />
+            ) : (
+              <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                AI 요약을 만들지 못한 날이라 수집된 원문 목록을 그대로 보여줍니다.
+              </p>
             )}
-            {category !== '전체' && displayList.length > visibleCount && (
-              <button
-                onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
-                className="rounded-xl border border-slate-200 bg-white py-3 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-100"
-              >
-                더보기 ({visibleCount} / {displayList.length})
-              </button>
+
+            {tags.length > 0 && (
+              <nav aria-label="태그 필터" className="-mx-4 overflow-x-auto px-4">
+                <div className="flex gap-1.5 whitespace-nowrap">
+                  <button
+                    onClick={() => setTag(null)}
+                    className={`rounded-full px-3 py-1 text-sm font-medium transition ${
+                      tag === null
+                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                        : 'bg-white text-slate-600 shadow-sm hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    전체 {items.length}
+                  </button>
+                  {tags.map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setTag(tag === t ? null : t)}
+                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium transition ${
+                        tag === t
+                          ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                          : 'bg-white text-slate-600 shadow-sm hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      #{t}
+                      {tag === t && <X className="h-3.5 w-3.5" aria-hidden />}
+                    </button>
+                  ))}
+                </div>
+              </nav>
             )}
+
+            <div className="flex flex-col gap-3">
+              {visible.map((item) => (
+                <ItemCard key={item.id} item={item} onTagClick={(t) => setTag(t)} />
+              ))}
+            </div>
           </>
         )}
-        </div>
       </main>
-
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

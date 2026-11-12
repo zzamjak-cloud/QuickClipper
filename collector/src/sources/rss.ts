@@ -4,7 +4,6 @@ import { applySourceFilters } from './filters.js';
 
 // media:* 네임스페이스 필드까지 파싱해 썸네일을 추출한다
 const parser: Parser<Record<string, unknown>, Record<string, unknown>> = new Parser({
-  timeout: 15000,
   customFields: {
     item: ['media:content', 'media:thumbnail', 'media:group', 'content:encoded'],
   },
@@ -35,7 +34,13 @@ function extractImage(item: Record<string, unknown>): string | undefined {
 
 /** RSS 피드에서 항목 수집 */
 export async function fetchRss(source: SourceDef): Promise<RawItem[]> {
-  const feed = await parser.parseURL(source.target);
+  // parseURL은 요청하지 않은 gzip 응답(DeepMind 피드)을 풀지 못해 fetch로 받아 파싱한다
+  const res = await fetch(source.target, {
+    signal: AbortSignal.timeout(15000),
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; QuickClipper/1.0)' },
+  });
+  if (!res.ok) throw new Error(`RSS HTTP ${res.status}`);
+  const feed = await parser.parseString(await res.text());
   const limit = source.limit ?? 30;
 
   const items = (feed.items ?? []).map((item) => ({

@@ -19,14 +19,20 @@ export function normalizeUrl(raw: string): string {
   }
 }
 
-/** HTML 태그 제거 + 공백 정리 + 길이 제한 */
-export function cleanSummary(raw: string, maxLen = 400): string {
-  const text = raw
-    .replace(/<[^>]+>/g, ' ')
+/** 피드에 이중 인코딩되어 남는 흔한 HTML 엔티티 복원 */
+function decodeEntities(text: string): string {
+  return text
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;|&apos;/g, "'")
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+/** HTML 태그 제거 + 공백 정리 + 길이 제한 */
+export function cleanSummary(raw: string, maxLen = 400): string {
+  const text = decodeEntities(raw.replace(/<[^>]+>/g, ' '))
     .replace(/\s+/g, ' ')
     .trim();
   return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text;
@@ -38,6 +44,7 @@ export function normalizeItems(items: RawItem[]): RawItem[] {
     .filter((it) => it.url)
     .map((it) => ({
       ...it,
+      title: decodeEntities(it.title),
       url: normalizeUrl(it.url),
       summary: cleanSummary(it.summary),
     }));

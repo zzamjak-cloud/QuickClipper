@@ -1,7 +1,11 @@
-import type { DigestItem, RawItem, SourceDef } from '../types.js';
+import type { DigestItem, RawItem, SourceDef, SourceTier } from '../types.js';
+
+// 1차 출처(공식 블로그)는 게시가 드물고 최신성 점수가 빨리 바닥나므로 가산,
+// 범용 커뮤니티는 AI 외 잡음·화제성 편향이 있어 감산한다.
+const TIER_BONUS: Record<SourceTier, number> = { official: 30, media: 0, community: -10 };
 
 /**
- * 소스 지표(HN 포인트, 레딧 업보트)를 0~100으로 정규화.
+ * 소스 지표(HN 포인트, GeekNews 추천수)를 0~100으로 정규화.
  * 지표가 없는 RSS는 최신일수록 높은 점수(0~70)를 부여해 최신순 정렬 효과를 낸다.
  */
 export function scoreItem(raw: RawItem, now: Date): number {
@@ -30,20 +34,13 @@ export function toDigestItems(
     title: raw.title,
     url: raw.url,
     summary: raw.summary,
-    category: source.category,
     sourceId: source.id,
     sourceName: source.name,
     lang: source.lang,
-    score: scoreItem(raw, now),
+    sourceTier: source.tier,
+    score: Math.min(Math.max(scoreItem(raw, now) + TIER_BONUS[source.tier], 0), 100),
     publishedAt: raw.publishedAt,
     collectedAt: now,
     imageUrl: raw.imageUrl,
-    jobCompany: raw.jobCompany,
-    jobCompanySize: raw.jobCompanySize,
-    jobRole: raw.jobRole,
-    jobLocation: raw.jobLocation,
-    jobEmployment: raw.jobEmployment,
-    jobUpdatedAt: raw.jobUpdatedAt,
-    jobMobileCasual: raw.jobMobileCasual,
   }));
 }
